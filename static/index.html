@@ -168,6 +168,11 @@
       background: #60a5fa; border: 1.5px solid #1d4ed8; cursor: grab;
       border-radius: 2px; transform: rotate(45deg);
     }
+    .vhandle-road {
+      width: 13px; height: 13px; margin: -7px 0 0 -7px;
+      background: #555; border: 2px solid #111; border-radius: 2px;
+      cursor: grab; pointer-events: all; box-sizing: border-box;
+    }
 
     /* ── Close-polygon pulse marker ── */
     @keyframes close-pulse {
@@ -213,6 +218,30 @@
     }
     .btn-primary { background: #2980b9; color: white; border: none; }
     .btn-cancel  { background: #ecf0f1; border: 1px solid #bbb; }
+
+    /* ── Edge-alignment popup ── */
+    #edge-popup {
+      display: none; position: fixed; background: white;
+      border: 1px solid #bbb; border-radius: 4px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.18);
+      z-index: 9000; padding: 3px 0; min-width: 190px;
+    }
+    #edge-popup.open { display: block; }
+    #edge-popup button {
+      display: block; width: 100%; padding: 7px 14px;
+      border: none; background: white; cursor: pointer;
+      font-size: 12px; text-align: left; white-space: nowrap;
+    }
+    #edge-popup button:hover { background: #f0f6ff; }
+    #edge-popup hr { border: none; border-top: 1px solid #eee; margin: 3px 0; }
+    #edge-op-hint {
+      display: none; position: fixed; bottom: 42px;
+      left: 50%; transform: translateX(-50%);
+      background: rgba(41,128,185,.92); color: white;
+      padding: 5px 16px; border-radius: 20px; font-size: 12px;
+      z-index: 2000; pointer-events: none; white-space: nowrap;
+    }
+    #edge-op-hint.visible { display: block; }
   </style>
 </head>
 <body>
@@ -262,6 +291,14 @@
   </div>
 </div>
 
+<div id="edge-popup">
+  <button onclick="startEdgeOp('parallel')">Make parallel to…</button>
+  <button onclick="startEdgeOp('perpendicular')">Make perpendicular to…</button>
+  <hr>
+  <button onclick="insertEdgeFromPopup()">Insert vertex here</button>
+</div>
+<div id="edge-op-hint"></div>
+
 <!-- hidden file input -->
 <input type="file" id="kml-input" accept=".kml" style="display:none"
        onchange="handleKMLFile(event)" />
@@ -299,6 +336,10 @@
       <div class="param-row">
         <label>Max variation (%)</label>
         <input type="number" id="p-max-var" value="15" min="0" max="100" onchange="computeStats()">
+      </div>
+      <div class="param-row">
+        <label>Min parcel size (m²)</label>
+        <input type="number" id="p-min-size" value="1000" min="0" step="50" onchange="computeStats()">
       </div>
     </div>
 
@@ -438,7 +479,7 @@ function initMap() {
 
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
-    if (e.key === 'Escape') cancelDraw();
+    if (e.key === 'Escape') { cancelDraw(); cancelEdgeOp(); closeEdgePopup(); }
     if (e.key === 'Enter') {
       const isRoad    = STATE.activeTool === 'draw-road';
       const isPolygon = STATE.activeTool === 'draw' || STATE.tracingMode;
@@ -467,8 +508,10 @@ const TOOL_BTNS = ['select', 'draw', 'draw-road', 'delete', 'pan'];
 function activateTool(name) {
   if (STATE.tracingMode && name !== 'select') return; // lock during tracing
 
-  // Cancel any active draw first
+  // Cancel any active draw / edge op first
   cancelDraw();
+  cancelEdgeOp();
+  closeEdgePopup();
   deselectAll();
 
   TOOL_BTNS.forEach(t => {
@@ -816,11 +859,19 @@ let _justDragged        = false;  // suppresses map click immediately after a ve
 let _parcelJustDragged  = false;  // suppresses polygon click after a parcel body drag
 let _snapTarget         = null;   // LatLng | null — nearest vertex within snap radius while drawing
 let _snapMarker         = null;   // circleMarker shown at the snap target
+let _pendingEdgeClick = null; // { id, edgeIdx, midLatLng } — set when edge midpoint is clicked
+let _edgeOpState      = null; // { parcelId, edgeIdx, mode, highlightLine } — waiting for ref edge
 
 // ── Stage 3: map click / dblclick / mousemove ─────────────────────────────────
 
 function onMapClick(e) {
   if (_justDragged) { _justDragged = false; return; }
+  if (document.getElementById('edge-popup').classList.contains('open')) { closeEdgePopup(); return; }
+  if (_edgeOpState) {
+    const ref = findNearestEdge(e.latlng);
+    if (ref) applyEdgeOp(ref.parcelId, ref.edgeIdx); else cancelEdgeOp();
+    return;
+  }
   const isPolygon = STATE.activeTool === 'draw' || STATE.tracingMode;
   const isRoad    = STATE.activeTool === 'draw-road';
   if (isPolygon || isRoad) {
@@ -828,14 +879,14 @@ function onMapClick(e) {
     if (isPolygon && STATE.drawVerts.length >= 3) {
       const firstPt = map.latLngToContainerPoint(STATE.drawVerts[0]);
       const clickPt = map.latLngToContainerPoint(e.latlng);
-      if (firstPt.distanceTo(clickPt) <= 15) {
+      if (firstPt.distanceTo(clickPt) <= SNAP_CLICK_PX) {
         if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
         finishDrawing();
         return;
       }
     }
     if (clickTimer !== null) return;
-    const clickLL = _snapTarget || e.latlng;
+    const clickLL = findSnapVertex(e.latlng, null, SNAP_CLICK_PX) || e.latlng;
     clickTimer = setTimeout(() => { clickTimer = null; addDrawVertex(clickLL); }, 200);
   } else if (STATE.activeTool === 'select' || STATE.activeTool === 'delete') {
     deselectAll();
@@ -868,10 +919,11 @@ function onMapMouseMove(e) {
 
 // ── Stage 3: snap ─────────────────────────────────────────────────────────────
 
-const SNAP_PX = 15;
+const SNAP_PX       = 15; // hover indicator radius
+const SNAP_CLICK_PX = 20; // larger tolerance used when snapping on actual clicks
 
 // exclude: optional { parcelId, vertexIdx } — skips that specific vertex (used during vertex drag)
-function findSnapVertex(latlng, exclude = null) {
+function findSnapVertex(latlng, exclude = null, radius = SNAP_PX) {
   const pt = map.latLngToContainerPoint(latlng);
   let best = null, bestDist = Infinity;
 
@@ -879,19 +931,19 @@ function findSnapVertex(latlng, exclude = null) {
     p.latlngs.forEach((ll, i) => {
       if (exclude && p.id === exclude.parcelId && i === exclude.vertexIdx) return;
       const d = pt.distanceTo(map.latLngToContainerPoint(ll));
-      if (d < SNAP_PX && d < bestDist) { bestDist = d; best = ll; }
+      if (d < radius && d < bestDist) { bestDist = d; best = ll; }
     })
   );
   STATE.originalFeatures.forEach(o =>
     o.geojson.geometry.coordinates[0].forEach(c => {
       const ll = L.latLng(c[1], c[0]);
       const d  = pt.distanceTo(map.latLngToContainerPoint(ll));
-      if (d < SNAP_PX && d < bestDist) { bestDist = d; best = ll; }
+      if (d < radius && d < bestDist) { bestDist = d; best = ll; }
     })
   );
   STATE.drawVerts.forEach(ll => {
     const d = pt.distanceTo(map.latLngToContainerPoint(ll));
-    if (d < SNAP_PX && d < bestDist) { bestDist = d; best = ll; }
+    if (d < radius && d < bestDist) { bestDist = d; best = ll; }
   });
 
   return best;
@@ -1067,7 +1119,11 @@ function applyRoadBuffer(verts, name, widthM) {
 
   pushHistory();
   const id = generateId();
-  STATE.editableParcels[id] = { id, name, type: 'Road', latlngs, originalId: null };
+  STATE.editableParcels[id] = {
+    id, name, type: 'Road', latlngs, originalId: null,
+    roadVerts: verts.map(ll => L.latLng(ll.lat, ll.lng)),
+    roadWidth: widthM,
+  };
   refreshEditableLayer();
   computeStats();
 }
@@ -1075,6 +1131,12 @@ function applyRoadBuffer(verts, name, widthM) {
 // ── Stage 3: select / deselect / handles ──────────────────────────────────────
 
 function handlePolygonClick(id, e) {
+  if (document.getElementById('edge-popup').classList.contains('open')) { closeEdgePopup(); return; }
+  if (_edgeOpState) {
+    const ref = findNearestEdge(e.latlng);
+    if (ref) applyEdgeOp(ref.parcelId, ref.edgeIdx);
+    return;
+  }
   if (STATE.activeTool === 'select') {
     const shift = e.originalEvent?.shiftKey;
     if (shift) {
@@ -1132,6 +1194,12 @@ function renderVertexHandles(id) {
   const p = STATE.editableParcels[id];
   if (!p) return;
 
+  // Roads use a dedicated handle mode: only centerline waypoints are editable
+  if (p.type === 'Road') {
+    if (p.roadVerts) renderRoadHandles(id);
+    return;
+  }
+
   function placeHandle(ll, cls, onDown) {
     const pt  = map.latLngToContainerPoint(ll);
     const div = document.createElement('div');
@@ -1145,6 +1213,7 @@ function renderVertexHandles(id) {
       map.dragging.disable();
       onDown(div, e);
     });
+    div.addEventListener('click', e => e.stopPropagation());
     container.appendChild(div);
     return div;
   }
@@ -1179,6 +1248,7 @@ function startParcelDrag(id, downEvent) {
   if (STATE.activeTool !== 'select') return;
   const p = STATE.editableParcels[id];
   if (!p) return;
+  closeEdgePopup();
 
   const _container  = map.getContainer();
   const rect        = _container.getBoundingClientRect();
@@ -1187,7 +1257,8 @@ function startParcelDrag(id, downEvent) {
   const startLL      = map.containerPointToLatLng(
     L.point(startClientX - rect.left, startClientY - rect.top)
   );
-  const startLatlngs = p.latlngs.map(ll => ({ lat: ll.lat, lng: ll.lng }));
+  const startLatlngs  = p.latlngs.map(ll => ({ lat: ll.lat, lng: ll.lng }));
+  const startRoadVerts = p.roadVerts ? p.roadVerts.map(ll => ({ lat: ll.lat, lng: ll.lng })) : null;
 
   let _moved = false;
   map.dragging.disable();
@@ -1214,6 +1285,7 @@ function startParcelDrag(id, downEvent) {
     const dLat = curLL.lat - startLL.lat;
     const dLng = curLL.lng - startLL.lng;
     p.latlngs = startLatlngs.map(s => L.latLng(s.lat + dLat, s.lng + dLng));
+    if (startRoadVerts) p.roadVerts = startRoadVerts.map(s => L.latLng(s.lat + dLat, s.lng + dLng));
 
     refreshEditableLayer();
     computeStats();
@@ -1242,6 +1314,7 @@ function startParcelDrag(id, downEvent) {
 // ── Stage 3: vertex drag ──────────────────────────────────────────────────────
 
 function startVertexDrag(id, idx, marker) {
+  closeEdgePopup();
   dragState = { id, idx };
   map.dragging.disable();
   let _moved = false;
@@ -1293,6 +1366,8 @@ function startVertexDrag(id, idx, marker) {
 function startEdgeDragOrInsert(id, edgeIdx, midLatLng, marker, downEvent) {
   const p = STATE.editableParcels[id];
   if (!p) return;
+
+  if (_edgeOpState) { applyEdgeOp(id, edgeIdx); return; }
 
   const _container = map.getContainer();
   const rect       = _container.getBoundingClientRect();
@@ -1355,8 +1430,7 @@ function startEdgeDragOrInsert(id, edgeIdx, midLatLng, marker, downEvent) {
     map.dragging.enable();
 
     if (!_moved) {
-      // Plain click: insert a vertex at the midpoint
-      insertVertexAndDrag(id, edgeIdx + 1, midLatLng);
+      showEdgePopup(id, edgeIdx, midLatLng, downEvent.clientX, downEvent.clientY);
       return;
     }
 
@@ -1471,9 +1545,10 @@ function doneTracing() {
 
 function computeStats() {
   const params = {
-    maxRed:  parseFloat(document.getElementById('p-max-red').value)  || 30,
-    minOvlp: parseFloat(document.getElementById('p-min-ovlp').value) || 50,
-    maxVar:  parseFloat(document.getElementById('p-max-var').value)  || 15,
+    maxRed:  parseFloat(document.getElementById('p-max-red').value)   || 30,
+    minOvlp: parseFloat(document.getElementById('p-min-ovlp').value)  || 50,
+    maxVar:  parseFloat(document.getElementById('p-max-var').value)   || 15,
+    minSize: parseFloat(document.getElementById('p-min-size').value)  || 1000,
   };
 
   const origById = {};
@@ -1500,7 +1575,7 @@ function computeStats() {
     if (orig) {
       deltaPercent    = ((newArea - origArea) / origArea) * 100;
       const reduction = -deltaPercent;                          // positive = parcel got smaller
-      if (reduction > params.maxRed) violations.push('reduction');
+      if (Number(reduction.toFixed(1)) > params.maxRed) violations.push('reduction');
       reductions.push(reduction);
 
       // Overlap only for private parcels
@@ -1509,10 +1584,13 @@ function computeStats() {
           const inter    = turf.intersect(tp, orig.geojson);
           overlapPercent = inter ? (turf.area(inter) / newArea) * 100 : 0;
         } catch(e) { overlapPercent = 0; }
-        if (overlapPercent < params.minOvlp) violations.push('overlap');
+        if (Number(overlapPercent.toFixed(1)) < params.minOvlp) violations.push('overlap');
         overlaps.push(overlapPercent);
       }
     }
+
+    // Minimum size — applies to all non-road parcel types
+    if (p.type !== 'Road' && newArea < params.minSize) violations.push('size');
 
     parcelStats.push({ id: p.id, name: p.name, type: p.type,
                        newArea, origArea, deltaPercent, overlapPercent, violations });
@@ -1563,7 +1641,9 @@ function computeStats() {
   const minOverlap      = overlaps.length ? Math.min(...overlaps) : null;
 
   let violationCount = parcelStats.reduce((s, ps) => s + ps.violations.length, 0);
-  if (reductionSpread !== null && reductionSpread > params.maxVar) violationCount++;
+  if (reductionSpread !== null && Number(reductionSpread.toFixed(1)) > params.maxVar) violationCount++;
+
+  const smallParcelsCount = parcelStats.filter(ps => ps.violations.includes('size')).length;
 
   const summary = {
     projectArea: projArea,
@@ -1573,6 +1653,7 @@ function computeStats() {
     coverageGap, hasOverlaps,
     avgReduction, maxReduction, minReduction, reductionSpread,
     avgOverlap, minOverlap,
+    smallParcelsCount,
     violationCount, params,
   };
 
@@ -1593,10 +1674,10 @@ function renderParcelTable(parcelStats, params) {
     const ok       = ps.violations.length === 0;
     const delta    = ps.deltaPercent;
     const reduction = delta !== null ? -delta : null;     // positive = parcel shrank
-    const deltaClass = (reduction !== null && reduction > params.maxRed) ? 'val-bad' : '';
+    const deltaClass = (reduction !== null && Number(reduction.toFixed(1)) > params.maxRed) ? 'val-bad' : '';
     const deltaStr   = delta !== null
       ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%` : '—';
-    const ovlpClass  = (ps.overlapPercent !== null && ps.overlapPercent < params.minOvlp)
+    const ovlpClass  = (ps.overlapPercent !== null && Number(ps.overlapPercent.toFixed(1)) < params.minOvlp)
       ? 'val-bad' : '';
     const ovlpStr    = ps.overlapPercent !== null
       ? `${ps.overlapPercent.toFixed(1)}%` : '—';
@@ -1714,10 +1795,15 @@ function renderSummary(s) {
     ? '<span class="val-bad">⚠ Overlaps detected</span>'
     : '<span class="val-ok">✓ No overlaps</span>';
 
-  const spreadBad  = s.reductionSpread !== null && s.reductionSpread > p.maxVar;
-  const maxRedBad  = s.maxReduction    !== null && s.maxReduction    > p.maxRed;
-  const minOvlpBad = s.minOverlap      !== null && s.minOverlap      < p.minOvlp;
-  const violBad    = s.violationCount  > 0;
+  const spreadBad   = s.reductionSpread !== null && Number(s.reductionSpread.toFixed(1)) > p.maxVar;
+  const maxRedBad   = s.maxReduction    !== null && Number(s.maxReduction.toFixed(1))   > p.maxRed;
+  const minOvlpBad  = s.minOverlap      !== null && Number(s.minOverlap.toFixed(1))    < p.minOvlp;
+  const sizeBad     = s.smallParcelsCount > 0;
+  const violBad     = s.violationCount    > 0;
+
+  const sizeHtml = sizeBad
+    ? `<span class="val-bad">⚠ ${s.smallParcelsCount} parcel${s.smallParcelsCount !== 1 ? 's' : ''} below ${formatArea(p.minSize)} m²</span>`
+    : `<span class="val-ok">✓ All above ${formatArea(p.minSize)} m²</span>`;
 
   el.innerHTML = `
     <div class="sum-row"><span class="sum-label">Project area</span>         <span class="sum-val">${m2(s.projectArea)}</span></div>
@@ -1726,6 +1812,7 @@ function renderSummary(s) {
     <div class="sum-row"><span class="sum-label">Private area</span>         <span class="sum-val">${m2(s.privateArea)} (${pct(s.privatePct)})</span></div>
     <div class="sum-row"><span class="sum-label">Coverage</span>             <span>${coverageHtml}</span></div>
     <div class="sum-row"><span class="sum-label">Polygon overlaps</span>     <span>${overlapHtml}</span></div>
+    <div class="sum-row"><span class="sum-label">Min parcel size</span>      <span>${sizeHtml}</span></div>
     <div class="sum-row"><span class="sum-label">Avg reduction</span>        <span class="sum-val">${pct(s.avgReduction)}</span></div>
     <div class="sum-row"><span class="sum-label">Max reduction</span>        <span class="${cls(maxRedBad)}">${pct(s.maxReduction)}</span></div>
     <div class="sum-row"><span class="sum-label">Min reduction</span>        <span class="sum-val">${pct(s.minReduction)}</span></div>
@@ -1747,6 +1834,8 @@ function serializeEditables() {
       type:       p.type,
       latlngs:    p.latlngs.map(ll => ({ lat: ll.lat, lng: ll.lng })),
       originalId: p.originalId,
+      roadVerts:  p.roadVerts ? p.roadVerts.map(ll => ({ lat: ll.lat, lng: ll.lng })) : null,
+      roadWidth:  p.roadWidth  || null,
     };
   });
   return JSON.stringify(out);
@@ -1762,6 +1851,8 @@ function deserializeEditables(json) {
       type:       p.type,
       latlngs:    p.latlngs.map(c => L.latLng(c.lat, c.lng)),
       originalId: p.originalId,
+      roadVerts:  p.roadVerts ? p.roadVerts.map(c => L.latLng(c.lat, c.lng)) : null,
+      roadWidth:  p.roadWidth  || null,
     };
   });
   return parcels;
@@ -1907,6 +1998,7 @@ function exportCSV() {
       ['Private area (%)',             pct(s.privatePct)],
       ['Coverage',                     coverageVal],
       ['Polygon overlaps',             s.hasOverlaps ? 'Yes' : 'No'],
+      ['Parcels below min size',       String(s.smallParcelsCount)],
       ['Avg reduction (%)',            pct(s.avgReduction)],
       ['Max reduction (%)',            pct(s.maxReduction)],
       ['Min reduction (%)',            pct(s.minReduction)],
@@ -1919,6 +2011,7 @@ function exportCSV() {
       ['Max reduction (%)',            pct(p.maxRed)],
       ['Min overlap (%)',              pct(p.minOvlp)],
       ['Max variation (%)',            pct(p.maxVar)],
+      ['Min parcel size (m²)',         String(Math.round(p.minSize))],
     ];
     rows.push(...srows);
   }
@@ -1962,6 +2055,7 @@ function shrinkSelected() {
   for (const id of STATE.selectedIds) {
     const p = STATE.editableParcels[id];
     if (!p) continue;
+    if (p.type === 'Road') continue; // roads are resized by dragging centerline endpoints
 
     let tp;
     try { tp = latlngsToTurf(p.latlngs); } catch(e) { continue; }
@@ -1981,6 +2075,249 @@ function shrinkSelected() {
   refreshEditableLayer();
   if (STATE.selectedIds.size === 1) renderVertexHandles(STATE.lastSelectedId);
   computeStats();
+}
+
+// ── Stage 3.5: road centerline editing ───────────────────────────────────────
+
+function rebufferRoad(parcel) {
+  if (!parcel.roadVerts || parcel.roadVerts.length < 2 || !parcel.roadWidth) return;
+  const coords = parcel.roadVerts.map(ll => [ll.lng, ll.lat]);
+  const line   = turf.lineString(coords);
+  let buf = turf.buffer(line, parcel.roadWidth / 2, { units: 'meters' });
+  if (!buf) return;
+  if (buf.geometry.type === 'MultiPolygon') {
+    let best = null, bestArea = 0;
+    buf.geometry.coordinates.forEach(rings => {
+      const poly = turf.polygon(rings); const a = turf.area(poly);
+      if (a > bestArea) { bestArea = a; best = poly; }
+    });
+    if (!best) return;
+    buf = best;
+  }
+  if (STATE.projectBoundaryGeojson) {
+    const clipped = turf.intersect(buf, STATE.projectBoundaryGeojson);
+    if (clipped && clipped.geometry.type === 'Polygon') buf = clipped;
+  }
+  const lls = coordsToLatLngs(buf.geometry.coordinates);
+  if (lls.length >= 3) parcel.latlngs = lls;
+}
+
+function renderRoadHandles(id) {
+  const container = document.getElementById('vhandles');
+  container.innerHTML = '';
+  _vertexMarkers = [];
+  STATE.vertexLG.clearLayers();
+  const p = STATE.editableParcels[id];
+  if (!p || !p.roadVerts) return;
+
+  // Dashed centerline so the user can see the editing axis
+  STATE.vertexLG.addLayer(L.polyline(p.roadVerts, {
+    color: '#444', weight: 1.5, dashArray: '6 4', interactive: false
+  }));
+
+  p.roadVerts.forEach((ll, idx) => {
+    const pt  = map.latLngToContainerPoint(ll);
+    const div = document.createElement('div');
+    div.className = 'vhandle-road';
+    div.style.left = pt.x + 'px';
+    div.style.top  = pt.y + 'px';
+    div._ll = ll;
+    div.addEventListener('mousedown', e => {
+      e.stopPropagation(); e.preventDefault();
+      map.dragging.disable();
+      closeEdgePopup();
+      startRoadVertexDrag(id, idx, div);
+    });
+    div.addEventListener('click', e => e.stopPropagation());
+    container.appendChild(div);
+    _vertexMarkers.push(div);
+  });
+}
+
+function startRoadVertexDrag(id, idx, marker) {
+  const p = STATE.editableParcels[id];
+  if (!p || !p.roadVerts) return;
+  let _moved = false;
+  const _container = map.getContainer();
+
+  function onMove(e) {
+    if (!_moved) { pushHistory(); _moved = true; }
+    const rect  = _container.getBoundingClientRect();
+    const rawLL = map.containerPointToLatLng(L.point(e.clientX - rect.left, e.clientY - rect.top));
+    p.roadVerts[idx] = rawLL;
+    if (marker && marker.parentNode) {
+      const pt = map.latLngToContainerPoint(rawLL);
+      marker.style.left = pt.x + 'px';
+      marker.style.top  = pt.y + 'px';
+      marker._ll = rawLL;
+    }
+    // Redraw centerline guide in-place
+    STATE.vertexLG.clearLayers();
+    STATE.vertexLG.addLayer(L.polyline(p.roadVerts, {
+      color: '#444', weight: 1.5, dashArray: '6 4', interactive: false
+    }));
+    rebufferRoad(p);
+    refreshEditableLayer();
+    computeStats();
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup',   onUp);
+    map.dragging.enable();
+    if (_moved) {
+      _justDragged = true;
+      setTimeout(() => { _justDragged = false; }, 50);
+    }
+    computeStats();
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup',   onUp);
+}
+
+// ── Stage 3.6: edge alignment (parallel / perpendicular) ──────────────────────
+
+function showEdgePopup(id, edgeIdx, midLatLng, clientX, clientY) {
+  _pendingEdgeClick = { id, edgeIdx, midLatLng };
+  const popup = document.getElementById('edge-popup');
+  popup.style.left = clientX + 'px';
+  popup.style.top  = (clientY + 4) + 'px';
+  popup.classList.add('open');
+  // Nudge popup on-screen if it would overflow (needs a tick for dimensions to be known)
+  setTimeout(() => {
+    const r = popup.getBoundingClientRect();
+    if (r.right  > window.innerWidth)  popup.style.left = (clientX - r.width)  + 'px';
+    if (r.bottom > window.innerHeight) popup.style.top  = (clientY - r.height) + 'px';
+  }, 0);
+}
+
+function closeEdgePopup() {
+  document.getElementById('edge-popup').classList.remove('open');
+  _pendingEdgeClick = null;
+}
+
+function insertEdgeFromPopup() {
+  if (!_pendingEdgeClick) { closeEdgePopup(); return; }
+  const { id, edgeIdx, midLatLng } = _pendingEdgeClick;
+  closeEdgePopup();
+  insertVertexAndDrag(id, edgeIdx + 1, midLatLng);
+}
+
+function startEdgeOp(mode) {
+  if (!_pendingEdgeClick) { closeEdgePopup(); return; }
+  const { id, edgeIdx } = _pendingEdgeClick;
+  closeEdgePopup();
+  const p = STATE.editableParcels[id];
+  if (!p) return;
+  const n = p.latlngs.length;
+  const a = p.latlngs[edgeIdx % n];
+  const b = p.latlngs[(edgeIdx + 1) % n];
+  const highlightLine = L.polyline([a, b], {
+    color: '#e74c3c', weight: 4, interactive: false
+  }).addTo(map);
+  _edgeOpState = { parcelId: id, edgeIdx, mode, highlightLine };
+  const hint = document.getElementById('edge-op-hint');
+  hint.textContent = mode === 'parallel'
+    ? 'Click any edge to align parallel to it  ·  Esc to cancel'
+    : 'Click any edge to align perpendicular to it  ·  Esc to cancel';
+  hint.classList.add('visible');
+}
+
+function cancelEdgeOp() {
+  if (!_edgeOpState) return;
+  if (_edgeOpState.highlightLine) _edgeOpState.highlightLine.remove();
+  _edgeOpState = null;
+  document.getElementById('edge-op-hint').classList.remove('visible');
+}
+
+function applyEdgeOp(refParcelId, refEdgeIdx) {
+  if (!_edgeOpState) return;
+  const { parcelId, edgeIdx, mode } = _edgeOpState;
+  cancelEdgeOp();
+
+  const p    = STATE.editableParcels[parcelId];
+  const refP = STATE.editableParcels[refParcelId];
+  if (!p || !refP) return;
+
+  const n    = p.latlngs.length;
+  const refN = refP.latlngs.length;
+  const idxA    = edgeIdx % n;
+  const idxB    = (edgeIdx + 1) % n;
+  const idxPrev = (idxA - 1 + n) % n;
+  const idxNext = (idxB + 1) % n;
+
+  // Work in lng/lat as flat 2-D coords (accurate for small local regions)
+  const A    = { x: p.latlngs[idxA].lng,    y: p.latlngs[idxA].lat };
+  const B    = { x: p.latlngs[idxB].lng,    y: p.latlngs[idxB].lat };
+  const Prev = { x: p.latlngs[idxPrev].lng, y: p.latlngs[idxPrev].lat };
+  const Next = { x: p.latlngs[idxNext].lng, y: p.latlngs[idxNext].lat };
+
+  const rIdxA = refEdgeIdx % refN;
+  const rIdxB = (refEdgeIdx + 1) % refN;
+  const rA = { x: refP.latlngs[rIdxA].lng, y: refP.latlngs[rIdxA].lat };
+  const rB = { x: refP.latlngs[rIdxB].lng, y: refP.latlngs[rIdxB].lat };
+
+  // Compute new direction for the target edge
+  let dir = { x: rB.x - rA.x, y: rB.y - rA.y };
+  const dlen = Math.hypot(dir.x, dir.y);
+  if (dlen < 1e-14) return;
+  dir = { x: dir.x / dlen, y: dir.y / dlen };
+  if (mode === 'perpendicular') dir = { x: -dir.y, y: dir.x };
+
+  // New edge line passes through the midpoint of the original edge
+  const M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+
+  // Adjacent edge directions (kept intact; only their endpoints move)
+  const dPrev = { x: A.x - Prev.x, y: A.y - Prev.y }; // Prev → A
+  const dNext = { x: Next.x - B.x, y: Next.y - B.y }; // B → Next
+
+  // New vertex positions = intersection of new edge line with each adjacent edge line
+  const newA = lineIntersect(M, dir, Prev, dPrev);
+  const newB = lineIntersect(M, dir, B,    dNext);
+  if (!newA || !newB) return; // adjacent edges parallel to new direction — no solution
+
+  pushHistory();
+  p.latlngs[idxA] = L.latLng(newA.y, newA.x);
+  p.latlngs[idxB] = L.latLng(newB.y, newB.x);
+
+  refreshEditableLayer();
+  if (STATE.selectedIds.has(parcelId) && STATE.selectedIds.size === 1)
+    renderVertexHandles(parcelId);
+  computeStats();
+}
+
+// Intersection of line through P with direction d1, and line through Q with direction d2.
+function lineIntersect(P, d1, Q, d2) {
+  const det = -d1.x * d2.y + d2.x * d1.y;
+  if (Math.abs(det) < 1e-14) return null; // parallel lines
+  const dx = Q.x - P.x, dy = Q.y - P.y;
+  const t  = (-dx * d2.y + d2.x * dy) / det;
+  return { x: P.x + t * d1.x, y: P.y + t * d1.y };
+}
+
+// Nearest polygon edge (within 20 screen-px) to a given map latlng.
+function findNearestEdge(latlng) {
+  const pt = map.latLngToContainerPoint(latlng);
+  let best = null, bestDist = Infinity;
+  Object.values(STATE.editableParcels).forEach(p => {
+    const n = p.latlngs.length;
+    for (let i = 0; i < n; i++) {
+      const a = map.latLngToContainerPoint(p.latlngs[i]);
+      const b = map.latLngToContainerPoint(p.latlngs[(i + 1) % n]);
+      const d = ptSegDist(pt, a, b);
+      if (d < bestDist) { bestDist = d; best = { parcelId: p.id, edgeIdx: i }; }
+    }
+  });
+  return bestDist < 20 ? best : null;
+}
+
+function ptSegDist(p, a, b) {
+  const abx = b.x - a.x, aby = b.y - a.y;
+  const len2 = abx * abx + aby * aby;
+  if (len2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / len2));
+  return Math.hypot(p.x - (a.x + t * abx), p.y - (a.y + t * aby));
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
