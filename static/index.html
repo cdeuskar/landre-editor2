@@ -1,0 +1,1990 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LandRe Editor</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           font-size: 13px; display: flex; height: 100vh; overflow: hidden; }
+
+    /* ── Map ── */
+    #map { flex: 1; height: 100vh; z-index: 0; }
+
+    /* ── Toolbar (left, floating) ── */
+    #toolbar {
+      position: absolute; top: 10px; left: 10px; z-index: 1000;
+      display: flex; flex-direction: column; gap: 3px;
+    }
+    .tool-sep { border: none; border-top: 1px solid #ccc; margin: 2px 0; }
+    .tool-btn {
+      background: white; border: 1px solid #bbb; border-radius: 4px;
+      padding: 5px 10px; cursor: pointer; font-size: 12px;
+      min-width: 148px; text-align: left; white-space: nowrap;
+    }
+    .tool-btn:hover { background: #f0f0f0; }
+    .tool-btn.active { background: #2980b9; color: white; border-color: #1a6fa0; }
+
+    /* ── Basemap switcher (bottom-left, floating) ── */
+    #basemap-ctrl {
+      position: absolute; bottom: 28px; left: 10px; z-index: 1000;
+      background: white; border: 1px solid #bbb; border-radius: 4px;
+      padding: 6px 10px; font-size: 12px;
+    }
+    #basemap-ctrl label { display: flex; align-items: center; gap: 5px;
+                          cursor: pointer; padding: 1px 0; }
+
+    /* ── Side panel ── */
+    #side-panel {
+      position: relative;
+      width: 500px; min-width: 160px; height: 100vh;
+      background: #fafafa; border-left: 1px solid #ddd;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    #side-panel.collapsed { width: 36px; min-width: 36px; }
+    #side-panel.collapsed #panel-title { display: none; }
+    #side-panel.collapsed #panel-header { justify-content: center; padding: 9px 4px; }
+    #panel-header {
+      background: #2c3e50; color: white; padding: 9px 12px;
+      font-weight: 600; font-size: 13px;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-shrink: 0; position: relative; z-index: 2;
+    }
+    #panel-toggle {
+      background: none; border: none; color: white;
+      font-size: 15px; cursor: pointer; padding: 0 2px;
+      flex-shrink: 0;
+    }
+    #panel-body {
+      flex: 1; overflow-y: auto; padding: 8px 10px;
+    }
+    #side-panel.collapsed #panel-body { display: none; }
+    #drag-handle {
+      position: absolute; left: 0; top: 0; height: 100%; width: 6px;
+      cursor: col-resize; z-index: 10; background: transparent;
+    }
+    #drag-handle:hover { background: rgba(59,110,212,.25); }
+
+    /* ── Collapsible sections ── */
+    .sec-hdr {
+      font-weight: 600; color: #2c3e50; font-size: 12px;
+      margin: 10px 0 5px; padding-bottom: 4px;
+      border-bottom: 1px solid #ddd;
+      display: flex; justify-content: space-between; align-items: center;
+      cursor: pointer; user-select: none;
+    }
+    .sec-hdr .caret { font-size: 10px; transition: transform .15s; }
+    .sec-hdr.closed .caret { transform: rotate(-90deg); }
+
+    /* ── Parameters ── */
+    .param-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin: 4px 0; font-size: 12px;
+    }
+    .param-row input[type=number] {
+      width: 58px; padding: 2px 4px; border: 1px solid #ccc;
+      border-radius: 3px; text-align: right; font-size: 12px;
+    }
+
+    /* ── Parcel table ── */
+    #table-scroll-wrap { position: relative; }
+    #table-scroll-wrap .scroll-fade {
+      display: none; position: absolute; top: 0; right: 0; bottom: 0; width: 32px;
+      background: linear-gradient(to right, transparent, #fafafa);
+      pointer-events: none; z-index: 2;
+    }
+    #table-scroll-wrap.has-overflow .scroll-fade { display: block; }
+    .table-inner { overflow-x: auto; }
+    .cols-badge {
+      display: none; font-size: 9px; font-weight: 400; letter-spacing: 0.02em;
+      color: #666; background: #e2e8f0; border-radius: 3px;
+      padding: 1px 5px; margin-left: 6px; vertical-align: middle;
+    }
+    .cols-badge.visible { display: inline-block; }
+    #parcel-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    #parcel-table th {
+      background: #ecf0f1; padding: 4px 5px; text-align: left;
+      border-bottom: 2px solid #bdc3c7; white-space: nowrap; font-size: 10px;
+    }
+    #parcel-table td {
+      padding: 3px 5px; border-bottom: 1px solid #eee; white-space: nowrap;
+    }
+    #parcel-table tr:hover td { background: #f5f5f5; }
+    #parcel-table tr.row-selected td { background: #fef3e2; }
+    #parcel-table tr.row-selected:hover td { background: #fde8c8; }
+    #parcel-table tbody tr { cursor: pointer; user-select: none; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .dot-ok  { background: #27ae60; }
+    .dot-err { background: #e74c3c; }
+    .val-bad { color: #c0392b; font-weight: 600; }
+    .val-ok  { color: #27ae60; }
+    .type-select { font-size: 11px; border: 1px solid #ccc; border-radius: 2px;
+                   padding: 1px 2px; max-width: 90px; }
+
+    /* ── Summary ── */
+    #summary-content { font-size: 12px; }
+    .sum-row {
+      display: flex; justify-content: space-between;
+      padding: 3px 2px; border-bottom: 1px solid #f0f0f0;
+    }
+    .sum-label { color: #555; }
+    .sum-val   { font-weight: 600; }
+
+    /* ── Shrink row ── */
+    .tool-shrink-row {
+      display: flex; align-items: center; justify-content: space-between;
+      background: white; border: 1px solid #bbb; border-radius: 4px;
+      padding: 4px 8px; font-size: 12px; min-width: 148px;
+    }
+    .tool-shrink-row label { cursor: default; }
+    .tool-shrink-row input[type=number] {
+      width: 46px; padding: 2px 4px; border: 1px solid #ccc;
+      border-radius: 3px; text-align: right; font-size: 12px;
+    }
+
+    /* ── Drawing cursor ── */
+    .drawing-cursor { cursor: crosshair !important; }
+
+    /* ── Vertex / midpoint drag handles (HTML divs, above all Leaflet panes) ── */
+    #vhandles {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none; z-index: 650;
+    }
+    .vhandle-v, .vhandle-m {
+      position: absolute; border-radius: 50%;
+      pointer-events: all; box-sizing: border-box;
+    }
+    .vhandle-v {
+      width: 14px; height: 14px; margin: -7px 0 0 -7px;
+      background: white; border: 2px solid #e67e22; cursor: grab;
+    }
+    .vhandle-m {
+      width: 10px; height: 10px; margin: -5px 0 0 -5px;
+      background: #60a5fa; border: 1.5px solid #1d4ed8; cursor: grab;
+      border-radius: 2px; transform: rotate(45deg);
+    }
+
+    /* ── Close-polygon pulse marker ── */
+    @keyframes close-pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+    .close-pulse { animation: close-pulse 0.85s ease-in-out infinite; }
+
+    /* ── Polygon labels ── */
+    .orig-label {
+      background: none; border: none; box-shadow: none;
+      color: #aaa; font-size: 9px; font-weight: 400;
+      text-shadow: 0 0 2px white, 0 0 2px white;
+      pointer-events: none; white-space: nowrap;
+    }
+    .edit-label {
+      background: none; border: none; box-shadow: none;
+      color: #1a3d1a; font-size: 11px; font-weight: 700;
+      text-shadow: 0 0 4px white, 0 0 4px white;
+      pointer-events: none; white-space: nowrap;
+    }
+
+    /* ── Modal dialogs (name + road) ── */
+    #name-dialog, #road-dialog {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      z-index: 9999; align-items: center; justify-content: center;
+    }
+    #name-dialog.open, #road-dialog.open { display: flex; }
+    #name-dialog-box, #road-dialog-box {
+      background: white; border-radius: 6px; padding: 20px 24px;
+      min-width: 280px; box-shadow: 0 4px 20px rgba(0,0,0,.25);
+    }
+    #name-dialog-box h3, #road-dialog-box h3 { margin-bottom: 14px; font-size: 14px; }
+    #name-dialog-box label, #road-dialog-box label { display: block; font-size: 12px; margin-bottom: 4px; }
+    #name-dialog-box input, #name-dialog-box select,
+    #road-dialog-box  input, #road-dialog-box  select {
+      width: 100%; padding: 5px 7px; margin-bottom: 10px;
+      border: 1px solid #ccc; border-radius: 4px; font-size: 13px;
+    }
+    #name-dialog-box .dlg-btns, #road-dialog-box .dlg-btns { display: flex; gap: 8px; justify-content: flex-end; }
+    #name-dialog-box button, #road-dialog-box button {
+      padding: 5px 14px; border-radius: 4px; cursor: pointer; font-size: 12px;
+    }
+    .btn-primary { background: #2980b9; color: white; border: none; }
+    .btn-cancel  { background: #ecf0f1; border: 1px solid #bbb; }
+  </style>
+</head>
+<body>
+
+<!-- ── Map ─────────────────────────────────────────────────────────────── -->
+<div id="map"></div>
+
+<!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
+<div id="toolbar">
+  <button class="tool-btn" id="btn-upload-kml"  onclick="triggerKMLUpload()">📂 Upload KML</button>
+  <button class="tool-btn" id="btn-trace"        onclick="startTracing()">✏️ Trace parcels</button>
+  <button class="tool-btn" id="btn-done-tracing" onclick="doneTracing()"
+          style="display:none">✔ Done tracing</button>
+  <hr class="tool-sep">
+  <button class="tool-btn active" id="btn-select" onclick="activateTool('select')">↖ Select / Reshape</button>
+  <button class="tool-btn"        id="btn-draw"      onclick="activateTool('draw')">⬡ Draw polygon</button>
+  <button class="tool-btn"        id="btn-draw-road" onclick="activateTool('draw-road')">╌ Draw road</button>
+  <button class="tool-btn"        id="btn-delete" onclick="activateTool('delete')">✕ Delete polygon</button>
+  <button class="tool-btn"        id="btn-pan"    onclick="activateTool('pan')">✋ Pan</button>
+  <hr class="tool-sep">
+  <button class="tool-btn" onclick="undo()">↩ Undo (Ctrl+Z)</button>
+  <hr class="tool-sep">
+  <div class="tool-shrink-row">
+    <label>Shrink&nbsp;%</label>
+    <input type="number" id="shrink-pct" value="10" min="0" max="100" step="1">
+  </div>
+  <button class="tool-btn" onclick="shrinkSelected()">↙ Shrink selected parcels</button>
+  <hr class="tool-sep">
+  <button class="tool-btn" id="btn-tog-orig"  onclick="toggleOriginals()">👁 Hide originals</button>
+  <button class="tool-btn" id="btn-tog-bound" onclick="toggleBoundary()">⬚ Hide boundary</button>
+  <hr class="tool-sep">
+  <button class="tool-btn" onclick="exportKML()">⬇ Export KML</button>
+  <button class="tool-btn" onclick="exportCSV()">⬇ Export CSV</button>
+</div>
+
+<div id="road-dialog">
+  <div id="road-dialog-box">
+    <h3>New road</h3>
+    <label>Name</label>
+    <input type="text" id="rdlg-name" placeholder="Road name" />
+    <label>Width (metres)</label>
+    <input type="number" id="rdlg-width" value="6" min="0.5" max="200" step="0.5" />
+    <div class="dlg-btns">
+      <button class="btn-cancel" onclick="cancelRoadDialog()">Cancel</button>
+      <button class="btn-primary" onclick="confirmRoadDialog()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- hidden file input -->
+<input type="file" id="kml-input" accept=".kml" style="display:none"
+       onchange="handleKMLFile(event)" />
+
+<!-- ── Basemap switcher ─────────────────────────────────────────────────── -->
+<div id="basemap-ctrl">
+  <label><input type="radio" name="bm" value="satellite" checked
+                onchange="switchBasemap('satellite')"> Satellite</label>
+  <label><input type="radio" name="bm" value="osm"
+                onchange="switchBasemap('osm')"> OpenStreetMap</label>
+</div>
+
+<!-- ── Side panel ───────────────────────────────────────────────────────── -->
+<div id="side-panel">
+  <div id="drag-handle"></div>
+  <div id="panel-header">
+    <span id="panel-title">LandRe Editor</span>
+    <button id="panel-toggle" onclick="togglePanel()">◀</button>
+  </div>
+  <div id="panel-body">
+
+    <!-- Parameters -->
+    <div class="sec-hdr" onclick="toggleSection('params-body',this)">
+      Parameters <span class="caret">▾</span>
+    </div>
+    <div id="params-body">
+      <div class="param-row">
+        <label>Max reduction (%)</label>
+        <input type="number" id="p-max-red" value="30" min="0" max="100" onchange="computeStats()">
+      </div>
+      <div class="param-row">
+        <label>Min overlap (%)</label>
+        <input type="number" id="p-min-ovlp" value="50" min="0" max="100" onchange="computeStats()">
+      </div>
+      <div class="param-row">
+        <label>Max variation (%)</label>
+        <input type="number" id="p-max-var" value="15" min="0" max="100" onchange="computeStats()">
+      </div>
+    </div>
+
+    <!-- Parcel table -->
+    <div class="sec-hdr" onclick="toggleSection('table-body',this)">
+      Parcels <span id="table-cols-badge" class="cols-badge">scroll for more ▸</span><span class="caret">▾</span>
+    </div>
+    <div id="table-body">
+      <div id="table-scroll-wrap">
+        <div class="scroll-fade"></div>
+        <div class="table-inner" id="table-inner">
+          <table id="parcel-table">
+            <thead><tr>
+              <th></th><th>Name</th><th>Type</th>
+              <th>New m²</th><th>Orig m²</th><th>Δ%</th><th>Ovlp%</th>
+            </tr></thead>
+            <tbody id="parcel-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layout summary -->
+    <div class="sec-hdr" onclick="toggleSection('summary-body',this)" style="margin-top:10px">
+      Layout summary <span class="caret">▾</span>
+    </div>
+    <div id="summary-body" id="summary-content"></div>
+
+  </div><!-- /panel-body -->
+</div><!-- /side-panel -->
+
+<!-- ── Name / type dialog ───────────────────────────────────────────────── -->
+<div id="name-dialog">
+  <div id="name-dialog-box">
+    <h3>New polygon</h3>
+    <label>Name</label>
+    <input type="text" id="dlg-name" placeholder="Parcel name" />
+    <label>Type</label>
+    <select id="dlg-type">
+      <option value="Private parcel">Private parcel</option>
+      <option value="Road">Road</option>
+      <option value="Public commercial">Public commercial</option>
+      <option value="Public social">Public social</option>
+      <option value="Open space">Open space</option>
+    </select>
+    <div class="dlg-btns">
+      <button class="btn-cancel" onclick="cancelDialog()">Cancel</button>
+      <button class="btn-primary" onclick="confirmDialog()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     JavaScript — Stage 1: globals, map init, tool switching, UI helpers
+     ══════════════════════════════════════════════════════════════════════ -->
+<script>
+// ── Global state ────────────────────────────────────────────────────────────
+const STATE = {
+  // layers
+  originalFeatures:  [],       // [{id, name, area, geojson}]
+  editableParcels:   {},       // id -> {id, name, type, latlngs, originalId}
+
+  // map layer groups
+  origLG:   null,
+  editLG:   null,
+  vertexLG: null,
+  boundaryLG: null,
+
+  // interaction
+  activeTool:     'select',
+  selectedIds:    new Set(),   // multi-select; shift-click to toggle
+  lastSelectedId: null,        // most recent for vertex handles
+  originalsVis:   true,
+  boundaryVis:   true,
+
+  // drawing
+  drawVerts:     [],           // L.LatLng[] during polygon draw
+  drawLine:      null,         // L.Polyline preview
+  tracingMode:   false,        // true = tracing originals
+
+  // pending dialog callbacks / data
+  dialogResolve:    null,
+  pendingRoadVerts: null,
+  lastSummary:      null,
+
+  // undo
+  history: [],                 // array of serialised snapshots
+
+  // project boundary (set by computeProjectBoundary)
+  projectBoundaryGeojson: null,
+  projectArea: 0,
+};
+
+// ── Map ─────────────────────────────────────────────────────────────────────
+let map;
+const baseLayers = {};
+
+function initMap() {
+  map = L.map('map', { zoomControl: true, preferCanvas: false })
+         .setView([-2.1736, 30.2044], 13);
+
+  baseLayers.satellite = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution: 'Tiles © Esri', maxZoom: 22, maxNativeZoom: 20 }
+  );
+  baseLayers.osm = L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { attribution: '© OpenStreetMap contributors', maxZoom: 22 }
+  );
+
+  baseLayers.satellite.addTo(map);
+
+  // Layer groups (order matters for z-index)
+  STATE.origLG    = L.layerGroup().addTo(map);
+  STATE.boundaryLG = L.layerGroup().addTo(map);
+  STATE.editLG    = L.layerGroup().addTo(map);
+  STATE.vertexLG  = L.layerGroup().addTo(map);
+
+  // Vertex handle overlay — plain HTML divs, always above SVG and tooltip panes
+  const _vh = document.createElement('div');
+  _vh.id = 'vhandles';
+  map.getContainer().appendChild(_vh);
+  map.on('move zoom', () => {
+    for (const div of document.getElementById('vhandles').children) {
+      if (div._ll) {
+        const pt = map.latLngToContainerPoint(div._ll);
+        div.style.left = pt.x + 'px';
+        div.style.top  = pt.y + 'px';
+      }
+    }
+  });
+
+  map.on('click',     onMapClick);
+  map.on('dblclick',  onMapDblClick);
+  map.on('mousemove', onMapMouseMove);
+  map.doubleClickZoom.disable();
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
+    if (e.key === 'Escape') cancelDraw();
+    if (e.key === 'Enter') {
+      const isRoad    = STATE.activeTool === 'draw-road';
+      const isPolygon = STATE.activeTool === 'draw' || STATE.tracingMode;
+      const minVerts  = isRoad ? 2 : 3;
+      if ((isRoad || isPolygon) && STATE.drawVerts.length >= minVerts) {
+        e.preventDefault();
+        if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
+        finishDrawing();
+      }
+    }
+  });
+
+  initResizeHandle();
+}
+
+function switchBasemap(type) {
+  const current = type === 'satellite' ? 'osm' : 'satellite';
+  if (map.hasLayer(baseLayers[current])) map.removeLayer(baseLayers[current]);
+  if (!map.hasLayer(baseLayers[type]))   baseLayers[type].addTo(map);
+  baseLayers[type].bringToBack();
+}
+
+// ── Tool activation ──────────────────────────────────────────────────────────
+const TOOL_BTNS = ['select', 'draw', 'draw-road', 'delete', 'pan'];
+
+function activateTool(name) {
+  if (STATE.tracingMode && name !== 'select') return; // lock during tracing
+
+  // Cancel any active draw first
+  cancelDraw();
+  deselectAll();
+
+  TOOL_BTNS.forEach(t => {
+    const b = document.getElementById('btn-' + t);
+    if (b) b.classList.toggle('active', t === name);
+  });
+
+  STATE.activeTool = name;
+
+  // Cursor
+  const mapEl = document.getElementById('map');
+  mapEl.classList.toggle('drawing-cursor', name === 'draw' || name === 'draw-road' || name === 'delete');
+  map.dragging[name === 'pan' ? 'enable' : 'enable'](); // always enabled (Leaflet default)
+}
+
+// ── Panel / section UI ───────────────────────────────────────────────────────
+function togglePanel() {
+  const panel = document.getElementById('side-panel');
+  const btn   = document.getElementById('panel-toggle');
+  const collapsed = panel.classList.toggle('collapsed');
+  btn.textContent = collapsed ? '▶' : '◀';
+  map.invalidateSize();
+}
+
+function initResizeHandle() {
+  const handle = document.getElementById('drag-handle');
+  const panel  = document.getElementById('side-panel');
+  const btn    = document.getElementById('panel-toggle');
+  let resizing = false;
+
+  handle.addEventListener('mousedown', e => {
+    resizing = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!resizing) return;
+    const newWidth = Math.min(600, Math.max(200, window.innerWidth - e.clientX));
+    panel.style.width    = newWidth + 'px';
+    panel.style.minWidth = newWidth + 'px';
+    updateTableOverflowHint();
+    if (panel.classList.contains('collapsed')) {
+      panel.classList.remove('collapsed');
+      btn.textContent = '◀';
+    }
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!resizing) return;
+    resizing = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    map.invalidateSize();
+  });
+}
+
+function toggleSection(bodyId, hdrEl) {
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+  const hidden = body.style.display === 'none';
+  body.style.display = hidden ? '' : 'none';
+  if (hdrEl) hdrEl.classList.toggle('closed', !hidden);
+}
+
+function toggleOriginals() {
+  STATE.originalsVis = !STATE.originalsVis;
+  const btn = document.getElementById('btn-tog-orig');
+  if (STATE.originalsVis) { map.addLayer(STATE.origLG);    btn.textContent = '👁 Hide originals'; }
+  else                    { map.removeLayer(STATE.origLG); btn.textContent = '👁 Show originals'; }
+}
+
+function toggleBoundary() {
+  STATE.boundaryVis = !STATE.boundaryVis;
+  const btn = document.getElementById('btn-tog-bound');
+  if (STATE.boundaryVis) { map.addLayer(STATE.boundaryLG);    btn.textContent = '⬚ Hide boundary'; }
+  else                   { map.removeLayer(STATE.boundaryLG); btn.textContent = '⬚ Show boundary'; }
+}
+
+// ── Utilities ────────────────────────────────────────────────────────────────
+function generateId() {
+  return '_' + Math.random().toString(36).substr(2, 9);
+}
+
+function getTypeStyle(type) {
+  return {
+    'Private parcel':    { color: '#1a7a1a', fillColor: '#90ee90', fillOpacity: 0.45 },
+    'Road':              { color: '#333333', fillColor: '#888888', fillOpacity: 0.65 },
+    'Public commercial': { color: '#1a5276', fillColor: '#aed6f1', fillOpacity: 0.55 },
+    'Public social':     { color: '#7d4c0e', fillColor: '#f0b27a', fillOpacity: 0.55 },
+    'Open space':        { color: '#1a5c4a', fillColor: '#a2d9ce', fillOpacity: 0.55 },
+  }[type] || { color: '#1a7a1a', fillColor: '#90ee90', fillOpacity: 0.45 };
+}
+
+function formatArea(m2) {
+  return m2 == null ? '—' : Math.round(m2).toLocaleString();
+}
+
+function formatPct(n) {
+  return n == null ? '—' : n.toFixed(1) + '%';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function triggerKMLUpload() {
+  document.getElementById('kml-input').click();
+}
+
+// ── Stage 2: coordinate helpers ──────────────────────────────────────────────
+
+// GeoJSON ring [[lng,lat],...] → L.LatLng[] (without closing duplicate)
+function coordsToLatLngs(ring) {
+  // ring may be [[lng,lat],...] or [[[lng,lat],...]] — unwrap one level if needed
+  const r = (Array.isArray(ring[0]) && Array.isArray(ring[0][0])) ? ring[0] : ring;
+  const closed = r.length > 1 && r[0][0] === r[r.length-1][0] && r[0][1] === r[r.length-1][1];
+  const pts = closed ? r.slice(0, -1) : r;
+  return pts.map(c => L.latLng(c[1], c[0]));
+}
+
+// L.LatLng[] → closed GeoJSON ring [[lng,lat],...]
+function latlngsToCoords(latlngs) {
+  const c = latlngs.map(ll => [ll.lng, ll.lat]);
+  c.push([...c[0]]);
+  return c;
+}
+
+// L.LatLng[] → turf Polygon feature
+function latlngsToTurf(latlngs) {
+  return turf.polygon([latlngsToCoords(latlngs)]);
+}
+
+// ── Stage 2: KML upload ───────────────────────────────────────────────────────
+
+async function handleKMLFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';  // allow re-upload of same file
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/api/upload/kml', { method: 'POST', body: formData });
+    if (!res.ok) throw new Error('Server error ' + res.status);
+    const fc = await res.json();
+    if (!fc.features || fc.features.length === 0) {
+      alert('No polygon features found in the KML file.');
+      return;
+    }
+    loadOriginals(fc.features);
+  } catch (err) {
+    // Fallback: parse KML entirely in the browser
+    try {
+      const text     = await file.text();
+      const features = parseKMLBrowser(text);
+      if (features.length > 0) loadOriginals(features);
+      else alert('No polygon features found in the KML file.');
+    } catch (err2) {
+      alert('Could not parse KML: ' + err2.message);
+    }
+  }
+}
+
+// Lightweight browser-side KML parser (used when server is unavailable)
+function parseKMLBrowser(text) {
+  const doc   = new DOMParser().parseFromString(text, 'application/xml');
+  const pms   = [...doc.querySelectorAll('Placemark')];
+  const feats = [];
+  pms.forEach((pm, i) => {
+    const nameEl = pm.querySelector('name');
+    const name   = nameEl?.textContent.trim() || `Parcel ${String.fromCharCode(65 + i)}`;
+    const polyEl = pm.querySelector('Polygon');
+    if (!polyEl) return;
+    const raw = polyEl.querySelector('coordinates')?.textContent.trim();
+    if (!raw) return;
+    const coords = raw.split(/\s+/).reduce((acc, tok) => {
+      const p = tok.split(',');
+      if (p.length >= 2) acc.push([parseFloat(p[0]), parseFloat(p[1])]);
+      return acc;
+    }, []);
+    if (coords.length < 3) return;
+    if (coords[0][0] !== coords[coords.length-1][0]) coords.push([...coords[0]]);
+    feats.push({
+      type: 'Feature',
+      properties: { name },
+      geometry: { type: 'Polygon', coordinates: [coords] }
+    });
+  });
+  return feats;
+}
+
+// ── Stage 2: load original parcels ───────────────────────────────────────────
+
+function loadOriginals(features) {
+  // Clear everything
+  STATE.origLG.clearLayers();
+  STATE.boundaryLG.clearLayers();
+  STATE.editLG.clearLayers();
+  STATE.vertexLG.clearLayers();
+  document.getElementById('vhandles').innerHTML = '';
+  STATE.originalFeatures = [];
+  STATE.editableParcels  = {};
+  STATE.selectedIds      = new Set();
+  STATE.lastSelectedId   = null;
+
+  const allLatLngs = [];
+
+  features.forEach((feat, i) => {
+    const id   = generateId();
+    const name = feat.properties?.name || `Parcel ${String.fromCharCode(65 + i)}`;
+    const ring = feat.geometry.coordinates;
+    const area = turf.area(feat);
+
+    // Normalise the geojson so turf operations always work
+    const geojson = turf.feature(
+      { type: 'Polygon', coordinates: Array.isArray(ring[0][0]) ? ring : [ring] },
+      { name }
+    );
+
+    STATE.originalFeatures.push({ id, name, area, geojson });
+
+    const lls = coordsToLatLngs(geojson.geometry.coordinates);
+    lls.forEach(ll => allLatLngs.push(ll));
+
+    // Dashed grey semi-transparent reference polygon (not interactive)
+    const poly = L.polygon(lls, {
+      color: '#c0c0c0', weight: 1.5, dashArray: '6 5',
+      fillColor: '#d8d8d8', fillOpacity: 0.08,
+      interactive: false
+    });
+
+    poly.bindTooltip(name, {
+      permanent: true, direction: 'center',
+      className: 'orig-label'
+    });
+
+    STATE.origLG.addLayer(poly);
+  });
+
+  if (allLatLngs.length) {
+    map.fitBounds(L.latLngBounds(allLatLngs), { padding: [50, 50] });
+  }
+
+  computeProjectBoundary();
+  createEditableCopies();
+}
+
+// ── Stage 2: project boundary ─────────────────────────────────────────────────
+
+function computeProjectBoundary() {
+  STATE.boundaryLG.clearLayers();
+  if (STATE.originalFeatures.length === 0) return;
+
+  const fc   = turf.featureCollection(STATE.originalFeatures.map(o => o.geojson));
+  const hull = turf.convex(fc);
+  if (!hull) return;
+
+  STATE.projectBoundaryGeojson = hull;
+  STATE.projectArea            = turf.area(hull);
+
+  const lls = coordsToLatLngs(hull.geometry.coordinates);
+  STATE.boundaryLG.addLayer(L.polygon(lls, {
+    color: '#111', weight: 2.5, dashArray: '9 6',
+    fill: false, interactive: false
+  }));
+}
+
+// ── Stage 2: create editable copies ──────────────────────────────────────────
+
+function createEditableCopies() {
+  STATE.editableParcels = {};
+  STATE.originalFeatures.forEach(orig => {
+    const id  = generateId();
+    const lls = coordsToLatLngs(orig.geojson.geometry.coordinates);
+    STATE.editableParcels[id] = {
+      id,
+      name:       orig.name,
+      type:       'Private parcel',
+      latlngs:    lls,
+      originalId: orig.id
+    };
+  });
+  refreshEditableLayer();
+  computeStats();
+}
+
+// ── Stage 2: render editable layer ────────────────────────────────────────────
+
+function refreshEditableLayer() {
+  STATE.editLG.clearLayers();
+  // Vertex handles remain managed by Stage 3 (selectPolygon / deselectAll)
+
+  Object.values(STATE.editableParcels).forEach(parcel => {
+    const style    = getTypeStyle(parcel.type);
+    const selected = STATE.selectedIds.has(parcel.id);
+    const poly     = L.polygon(parcel.latlngs, {
+      ...style,
+      weight:    selected ? 3 : 2,
+      color:     selected ? '#e67e22' : style.color,
+      dashArray: null
+    });
+
+    poly.bindTooltip(parcel.name, {
+      permanent: true, direction: 'center',
+      className: 'edit-label'
+    });
+
+    poly.on('mousedown', e => { L.DomEvent.stopPropagation(e); startParcelDrag(parcel.id, e.originalEvent); });
+    poly.on('click',     e => { L.DomEvent.stopPropagation(e); if (_parcelJustDragged) { _parcelJustDragged = false; return; } handlePolygonClick(parcel.id, e); });
+    poly.on('dblclick',  e => { L.DomEvent.stopPropagation(e); renameParcel(parcel.id); });
+    poly._parcelId = parcel.id;
+    STATE.editLG.addLayer(poly);
+    if (STATE.activeTool === 'select') {
+      const el = poly.getElement();
+      if (el) el.style.cursor = 'move';
+    }
+  });
+}
+
+// ── Stage 2: rename (double-click on label) ───────────────────────────────────
+
+function renameParcel(id) {
+  const p = STATE.editableParcels[id];
+  if (!p) return;
+  const newName = prompt('Rename parcel:', p.name);
+  if (newName && newName.trim() && newName.trim() !== p.name) {
+    pushHistory();
+    p.name = newName.trim();
+    refreshEditableLayer();
+    computeStats();
+  }
+}
+
+const MAX_HISTORY  = 50;
+
+// ── Stage 3: transient interaction state ─────────────────────────────────────
+let dragState      = null;   // { id, idx } while dragging a vertex
+let _vertexMarkers = [];     // ordered vertex markers for the selected polygon
+let _closeMarker   = null;   // pulsing marker on first draw vertex (shown at 3+ verts)
+let clickTimer     = null;   // debounce single vs double-click during drawing
+let _justDragged        = false;  // suppresses map click immediately after a vertex drag
+let _parcelJustDragged  = false;  // suppresses polygon click after a parcel body drag
+let _snapTarget         = null;   // LatLng | null — nearest vertex within snap radius while drawing
+let _snapMarker         = null;   // circleMarker shown at the snap target
+
+// ── Stage 3: map click / dblclick / mousemove ─────────────────────────────────
+
+function onMapClick(e) {
+  if (_justDragged) { _justDragged = false; return; }
+  const isPolygon = STATE.activeTool === 'draw' || STATE.tracingMode;
+  const isRoad    = STATE.activeTool === 'draw-road';
+  if (isPolygon || isRoad) {
+    // Close polygon if clicked within 15px of first vertex (polygon mode only, needs 3+ verts)
+    if (isPolygon && STATE.drawVerts.length >= 3) {
+      const firstPt = map.latLngToContainerPoint(STATE.drawVerts[0]);
+      const clickPt = map.latLngToContainerPoint(e.latlng);
+      if (firstPt.distanceTo(clickPt) <= 15) {
+        if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
+        finishDrawing();
+        return;
+      }
+    }
+    if (clickTimer !== null) return;
+    const clickLL = _snapTarget || e.latlng;
+    clickTimer = setTimeout(() => { clickTimer = null; addDrawVertex(clickLL); }, 200);
+  } else if (STATE.activeTool === 'select' || STATE.activeTool === 'delete') {
+    deselectAll();
+  }
+}
+
+function onMapDblClick(e) {
+  if (STATE.activeTool === 'draw' || STATE.tracingMode) {
+    L.DomEvent.stopPropagation(e);
+    if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
+    finishDrawing();
+  } else if (STATE.activeTool === 'draw-road' && STATE.drawVerts.length >= 2) {
+    L.DomEvent.stopPropagation(e);
+    if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
+    finishDrawing();
+  }
+}
+
+function onMapMouseMove(e) {
+  const drawing = STATE.activeTool === 'draw' || STATE.activeTool === 'draw-road' || STATE.tracingMode;
+  if (drawing) {
+    _snapTarget = findSnapVertex(e.latlng);
+    updateSnapMarker(_snapTarget);
+    if (STATE.drawVerts.length > 0) updateDrawPreview(_snapTarget || e.latlng);
+  } else if (_snapMarker) {
+    _snapTarget = null;
+    updateSnapMarker(null);
+  }
+}
+
+// ── Stage 3: snap ─────────────────────────────────────────────────────────────
+
+const SNAP_PX = 15;
+
+// exclude: optional { parcelId, vertexIdx } — skips that specific vertex (used during vertex drag)
+function findSnapVertex(latlng, exclude = null) {
+  const pt = map.latLngToContainerPoint(latlng);
+  let best = null, bestDist = Infinity;
+
+  Object.values(STATE.editableParcels).forEach(p =>
+    p.latlngs.forEach((ll, i) => {
+      if (exclude && p.id === exclude.parcelId && i === exclude.vertexIdx) return;
+      const d = pt.distanceTo(map.latLngToContainerPoint(ll));
+      if (d < SNAP_PX && d < bestDist) { bestDist = d; best = ll; }
+    })
+  );
+  STATE.originalFeatures.forEach(o =>
+    o.geojson.geometry.coordinates[0].forEach(c => {
+      const ll = L.latLng(c[1], c[0]);
+      const d  = pt.distanceTo(map.latLngToContainerPoint(ll));
+      if (d < SNAP_PX && d < bestDist) { bestDist = d; best = ll; }
+    })
+  );
+  STATE.drawVerts.forEach(ll => {
+    const d = pt.distanceTo(map.latLngToContainerPoint(ll));
+    if (d < SNAP_PX && d < bestDist) { bestDist = d; best = ll; }
+  });
+
+  return best;
+}
+
+function updateSnapMarker(ll) {
+  if (!ll) {
+    if (_snapMarker) { _snapMarker.remove(); _snapMarker = null; }
+    return;
+  }
+  if (!_snapMarker) {
+    _snapMarker = L.circleMarker(ll, {
+      radius: 7, color: '#3b82f6', weight: 2.5,
+      fillColor: '#93c5fd', fillOpacity: 0.55, interactive: false
+    }).addTo(map);
+  } else {
+    _snapMarker.setLatLng(ll);
+  }
+}
+
+// ── Stage 3: drawing ──────────────────────────────────────────────────────────
+
+function showCloseMarker() {
+  removeCloseMarker();
+  const firstVert = STATE.drawVerts[0];
+  _closeMarker = L.circleMarker(firstVert, {
+    radius: 10, color: '#27ae60', weight: 2.5,
+    fillColor: '#27ae60', fillOpacity: 0.35, interactive: true
+  });
+  _closeMarker.bindTooltip('Click to close polygon', { direction: 'top', offset: [0, -8] });
+  _closeMarker.on('click', e => {
+    L.DomEvent.stopPropagation(e);
+    if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
+    finishDrawing();
+  });
+  _closeMarker.addTo(map);
+  // Apply pulse class to the underlying SVG element
+  setTimeout(() => {
+    const el = _closeMarker.getElement();
+    if (el) el.classList.add('close-pulse');
+  }, 0);
+}
+
+function removeCloseMarker() {
+  if (_closeMarker) { _closeMarker.remove(); _closeMarker = null; }
+}
+
+function addDrawVertex(latlng) {
+  STATE.drawVerts.push(latlng);
+  updateDrawPreview();
+  if (STATE.drawVerts.length >= 3 && STATE.activeTool !== 'draw-road') showCloseMarker();
+}
+
+function updateDrawPreview(moveLatlng) {
+  if (STATE.drawLine) { STATE.drawLine.remove(); STATE.drawLine = null; }
+  const pts = [...STATE.drawVerts];
+  if (moveLatlng) pts.push(moveLatlng);
+  if (pts.length < 2) return;
+  STATE.drawLine = L.polyline(pts, {
+    color: '#e67e22', weight: 2, dashArray: '5 4', interactive: false
+  }).addTo(map);
+}
+
+function cancelDraw() {
+  if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
+  if (STATE.drawLine) { STATE.drawLine.remove(); STATE.drawLine = null; }
+  removeCloseMarker();
+  updateSnapMarker(null);
+  _snapTarget = null;
+  STATE.drawVerts = [];
+}
+
+function finishDrawing() {
+  const verts  = [...STATE.drawVerts];
+  const isRoad = STATE.activeTool === 'draw-road';
+  cancelDraw();
+
+  if (isRoad) {
+    if (verts.length < 2) return;
+    openRoadDialog(verts);
+  } else if (STATE.tracingMode) {
+    if (verts.length < 3) return;
+    addTracedOriginal(verts);
+  } else {
+    if (verts.length < 3) return;
+    const autoName = `Parcel ${String.fromCharCode(65 + Object.keys(STATE.editableParcels).length)}`;
+    openNameDialog(autoName, 'Private parcel', (name, type) => {
+      pushHistory();
+      const id = generateId();
+      STATE.editableParcels[id] = { id, name, type, latlngs: verts, originalId: null };
+      refreshEditableLayer();
+      computeStats();
+    });
+  }
+}
+
+// ── Stage 3: name / type dialog ───────────────────────────────────────────────
+
+function openNameDialog(defaultName, defaultType, callback) {
+  document.getElementById('dlg-name').value = defaultName;
+  document.getElementById('dlg-type').value = defaultType;
+  document.getElementById('name-dialog').classList.add('open');
+  STATE.dialogResolve = callback;
+}
+
+function confirmDialog() {
+  const name = document.getElementById('dlg-name').value.trim();
+  const type = document.getElementById('dlg-type').value;
+  document.getElementById('name-dialog').classList.remove('open');
+  if (name && STATE.dialogResolve) {
+    const cb = STATE.dialogResolve;
+    STATE.dialogResolve = null;
+    cb(name, type);
+  }
+}
+
+function cancelDialog() {
+  document.getElementById('name-dialog').classList.remove('open');
+  STATE.dialogResolve = null;
+}
+
+// ── Stage 3: road dialog + buffer ────────────────────────────────────────────
+
+function openRoadDialog(verts) {
+  const roadCount = Object.values(STATE.editableParcels).filter(p => p.type === 'Road').length;
+  document.getElementById('rdlg-name').value  = `Road ${String.fromCharCode(65 + roadCount)}`;
+  document.getElementById('rdlg-width').value = '6';
+  document.getElementById('road-dialog').classList.add('open');
+  STATE.pendingRoadVerts = verts;
+}
+
+function confirmRoadDialog() {
+  const name  = document.getElementById('rdlg-name').value.trim();
+  const width = parseFloat(document.getElementById('rdlg-width').value);
+  document.getElementById('road-dialog').classList.remove('open');
+  if (!name || !(width > 0) || !STATE.pendingRoadVerts) return;
+  const verts = STATE.pendingRoadVerts;
+  STATE.pendingRoadVerts = null;
+  applyRoadBuffer(verts, name, width);
+}
+
+function cancelRoadDialog() {
+  document.getElementById('road-dialog').classList.remove('open');
+  STATE.pendingRoadVerts = null;
+}
+
+function applyRoadBuffer(verts, name, widthM) {
+  const coords = verts.map(ll => [ll.lng, ll.lat]);
+  const line   = turf.lineString(coords);
+  let buffered = turf.buffer(line, widthM / 2, { units: 'meters' });
+  if (!buffered) return;
+
+  // Flatten MultiPolygon → largest Polygon
+  if (buffered.geometry.type === 'MultiPolygon') {
+    let best = null, bestArea = 0;
+    buffered.geometry.coordinates.forEach(rings => {
+      const poly = turf.polygon(rings);
+      const a    = turf.area(poly);
+      if (a > bestArea) { bestArea = a; best = poly; }
+    });
+    if (!best) return;
+    buffered = best;
+  }
+
+  // Clip to project boundary if one exists
+  if (STATE.projectBoundaryGeojson) {
+    const clipped = turf.intersect(buffered, STATE.projectBoundaryGeojson);
+    if (clipped && clipped.geometry.type === 'Polygon') buffered = clipped;
+  }
+
+  const latlngs = coordsToLatLngs(buffered.geometry.coordinates);
+  if (latlngs.length < 3) return;
+
+  pushHistory();
+  const id = generateId();
+  STATE.editableParcels[id] = { id, name, type: 'Road', latlngs, originalId: null };
+  refreshEditableLayer();
+  computeStats();
+}
+
+// ── Stage 3: select / deselect / handles ──────────────────────────────────────
+
+function handlePolygonClick(id, e) {
+  if (STATE.activeTool === 'select') {
+    const shift = e.originalEvent?.shiftKey;
+    if (shift) {
+      // Toggle this parcel in the selection set
+      if (STATE.selectedIds.has(id)) {
+        STATE.selectedIds.delete(id);
+        if (STATE.lastSelectedId === id)
+          STATE.lastSelectedId = STATE.selectedIds.size > 0
+            ? [...STATE.selectedIds].at(-1) : null;
+        refreshEditableLayer();
+        if (STATE.selectedIds.size === 1) renderVertexHandles(STATE.lastSelectedId);
+        else { STATE.vertexLG.clearLayers(); document.getElementById('vhandles').innerHTML = ''; }
+        syncTableSelection();
+      } else {
+        STATE.selectedIds.add(id);
+        STATE.lastSelectedId = id;
+        refreshEditableLayer();
+        if (STATE.selectedIds.size === 1) renderVertexHandles(id);
+        else { STATE.vertexLG.clearLayers(); document.getElementById('vhandles').innerHTML = ''; }
+        syncTableSelection();
+      }
+    } else {
+      // No shift: deselect if it's the only selected, otherwise select only this one
+      if (STATE.selectedIds.has(id) && STATE.selectedIds.size === 1) deselectAll();
+      else selectPolygon(id);
+    }
+  } else if (STATE.activeTool === 'delete') {
+    deletePolygon(id);
+  }
+}
+
+function selectPolygon(id) {
+  STATE.selectedIds    = new Set([id]);
+  STATE.lastSelectedId = id;
+  refreshEditableLayer();
+  renderVertexHandles(id);
+  syncTableSelection();
+  scrollRowIntoView(id);
+}
+
+function deselectAll() {
+  STATE.selectedIds    = new Set();
+  STATE.lastSelectedId = null;
+  _vertexMarkers = [];
+  STATE.vertexLG.clearLayers();
+  document.getElementById('vhandles').innerHTML = '';
+  refreshEditableLayer();
+  syncTableSelection();
+}
+
+function renderVertexHandles(id) {
+  const container = document.getElementById('vhandles');
+  container.innerHTML = '';
+  _vertexMarkers = [];
+  const p = STATE.editableParcels[id];
+  if (!p) return;
+
+  function placeHandle(ll, cls, onDown) {
+    const pt  = map.latLngToContainerPoint(ll);
+    const div = document.createElement('div');
+    div.className = cls;
+    div.style.left = pt.x + 'px';
+    div.style.top  = pt.y + 'px';
+    div._ll = ll;
+    div.addEventListener('mousedown', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      map.dragging.disable();
+      onDown(div, e);
+    });
+    container.appendChild(div);
+    return div;
+  }
+
+  p.latlngs.forEach((ll, idx) => {
+    const div = placeHandle(ll, 'vhandle-v', d => startVertexDrag(id, idx, d));
+    div.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (p.latlngs.length <= 3) return;
+      pushHistory();
+      p.latlngs.splice(idx, 1);
+      renderVertexHandles(id);
+      refreshEditableLayer();
+      computeStats();
+    });
+    _vertexMarkers.push(div);
+  });
+
+  const n = p.latlngs.length;
+  for (let i = 0; i < n; i++) {
+    const a   = p.latlngs[i];
+    const b   = p.latlngs[(i + 1) % n];
+    const mid = L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2);
+    placeHandle(mid, 'vhandle-m', (d, e) => startEdgeDragOrInsert(id, i, mid, d, e));
+  }
+}
+
+// ── Stage 3: parcel body drag ─────────────────────────────────────────────────
+
+function startParcelDrag(id, downEvent) {
+  if (STATE.activeTool !== 'select') return;
+  const p = STATE.editableParcels[id];
+  if (!p) return;
+
+  const _container  = map.getContainer();
+  const rect        = _container.getBoundingClientRect();
+  const startClientX = downEvent.clientX;
+  const startClientY = downEvent.clientY;
+  const startLL      = map.containerPointToLatLng(
+    L.point(startClientX - rect.left, startClientY - rect.top)
+  );
+  const startLatlngs = p.latlngs.map(ll => ({ lat: ll.lat, lng: ll.lng }));
+
+  let _moved = false;
+  map.dragging.disable();
+
+  function onMove(e) {
+    const dx = e.clientX - startClientX;
+    const dy = e.clientY - startClientY;
+    if (!_moved && Math.hypot(dx, dy) < 3) return;
+    if (!_moved) {
+      pushHistory();
+      // Force-select this parcel and clear vertex handles during drag
+      if (!STATE.selectedIds.has(id)) {
+        STATE.selectedIds    = new Set([id]);
+        STATE.lastSelectedId = id;
+      }
+      document.getElementById('vhandles').innerHTML = '';
+      _vertexMarkers = [];
+      _moved = true;
+    }
+
+    const curLL = map.containerPointToLatLng(
+      L.point(e.clientX - rect.left, e.clientY - rect.top)
+    );
+    const dLat = curLL.lat - startLL.lat;
+    const dLng = curLL.lng - startLL.lng;
+    p.latlngs = startLatlngs.map(s => L.latLng(s.lat + dLat, s.lng + dLng));
+
+    refreshEditableLayer();
+    computeStats();
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup',   onUp);
+    map.dragging.enable();
+
+    if (!_moved) return; // no drag — let the click event fire normally
+
+    _parcelJustDragged = true;
+    _justDragged = true;
+    setTimeout(() => { _justDragged = false; }, 50);
+    if (STATE.selectedIds.size === 1 && STATE.selectedIds.has(id)) {
+      renderVertexHandles(id);
+    }
+    computeStats();
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup',   onUp);
+}
+
+// ── Stage 3: vertex drag ──────────────────────────────────────────────────────
+
+function startVertexDrag(id, idx, marker) {
+  dragState = { id, idx };
+  map.dragging.disable();
+  let _moved = false;
+  const _container = map.getContainer();
+
+  function onMove(e) {
+    if (!_moved) pushHistory();
+    _moved = true;
+    const p = STATE.editableParcels[id];
+    if (!p) return;
+    const rect   = _container.getBoundingClientRect();
+    const x      = e.clientX - rect.left;
+    const y      = e.clientY - rect.top;
+    const rawLL  = map.containerPointToLatLng(L.point(x, y));
+    const snapLL = findSnapVertex(rawLL, { parcelId: id, vertexIdx: idx });
+    const ll     = snapLL || rawLL;
+    updateSnapMarker(snapLL);
+    p.latlngs[idx] = ll;
+    if (marker && marker.parentNode) {
+      const pt = snapLL ? map.latLngToContainerPoint(snapLL) : L.point(x, y);
+      marker.style.left = pt.x + 'px';
+      marker.style.top  = pt.y + 'px';
+      marker._ll = ll;
+    }
+    refreshEditableLayer();
+    computeStats();
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup',   onUp);
+    dragState = null;
+    map.dragging.enable();
+    updateSnapMarker(null);
+    if (_moved) {
+      _justDragged = true;
+      setTimeout(() => { _justDragged = false; }, 50);
+      renderVertexHandles(id);
+      computeStats();
+    }
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup',   onUp);
+}
+
+// ── Stage 3: edge drag ────────────────────────────────────────────────────────
+
+function startEdgeDragOrInsert(id, edgeIdx, midLatLng, marker, downEvent) {
+  const p = STATE.editableParcels[id];
+  if (!p) return;
+
+  const _container = map.getContainer();
+  const rect       = _container.getBoundingClientRect();
+  const startClientX = downEvent.clientX;
+  const startClientY = downEvent.clientY;
+  const startLL = map.containerPointToLatLng(
+    L.point(startClientX - rect.left, startClientY - rect.top)
+  );
+
+  const n    = p.latlngs.length;
+  const idxA = edgeIdx % n;
+  const idxB = (edgeIdx + 1) % n;
+  const startA = { lat: p.latlngs[idxA].lat, lng: p.latlngs[idxA].lng };
+  const startB = { lat: p.latlngs[idxB].lat, lng: p.latlngs[idxB].lng };
+
+  let _moved = false;
+
+  function onMove(e) {
+    const dx = e.clientX - startClientX;
+    const dy = e.clientY - startClientY;
+    if (!_moved && Math.hypot(dx, dy) < 3) return;
+    if (!_moved) { pushHistory(); _moved = true; }
+
+    const curLL = map.containerPointToLatLng(
+      L.point(e.clientX - rect.left, e.clientY - rect.top)
+    );
+    const dLat = curLL.lat - startLL.lat;
+    const dLng = curLL.lng - startLL.lng;
+
+    p.latlngs[idxA] = L.latLng(startA.lat + dLat, startA.lng + dLng);
+    p.latlngs[idxB] = L.latLng(startB.lat + dLat, startB.lng + dLng);
+
+    // Keep vertex handles in sync during drag
+    if (_vertexMarkers[idxA]) {
+      const ptA = map.latLngToContainerPoint(p.latlngs[idxA]);
+      _vertexMarkers[idxA].style.left = ptA.x + 'px';
+      _vertexMarkers[idxA].style.top  = ptA.y + 'px';
+    }
+    if (_vertexMarkers[idxB]) {
+      const ptB = map.latLngToContainerPoint(p.latlngs[idxB]);
+      _vertexMarkers[idxB].style.left = ptB.x + 'px';
+      _vertexMarkers[idxB].style.top  = ptB.y + 'px';
+    }
+
+    // Keep the edge handle at the new midpoint
+    const midPt = map.latLngToContainerPoint(
+      L.latLng((p.latlngs[idxA].lat + p.latlngs[idxB].lat) / 2,
+               (p.latlngs[idxA].lng + p.latlngs[idxB].lng) / 2)
+    );
+    marker.style.left = midPt.x + 'px';
+    marker.style.top  = midPt.y + 'px';
+
+    refreshEditableLayer();
+    computeStats();
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup',   onUp);
+    map.dragging.enable();
+
+    if (!_moved) {
+      // Plain click: insert a vertex at the midpoint
+      insertVertexAndDrag(id, edgeIdx + 1, midLatLng);
+      return;
+    }
+
+    _justDragged = true;
+    setTimeout(() => { _justDragged = false; }, 50);
+    renderVertexHandles(id);
+    computeStats();
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup',   onUp);
+}
+
+// ── Stage 3: insert / delete ──────────────────────────────────────────────────
+
+function insertVertexAndDrag(id, beforeIdx, latlng) {
+  const p = STATE.editableParcels[id];
+  if (!p) return;
+  pushHistory();
+  p.latlngs.splice(beforeIdx, 0, L.latLng(latlng.lat, latlng.lng));
+  renderVertexHandles(id);
+  refreshEditableLayer();
+  computeStats();
+  // Chain straight into dragging the new vertex
+  const newMarker = _vertexMarkers[beforeIdx];
+  if (newMarker) startVertexDrag(id, beforeIdx, newMarker);
+}
+
+function deletePolygon(id) {
+  if (!STATE.editableParcels[id]) return;
+  pushHistory();
+  delete STATE.editableParcels[id];
+  if (STATE.selectedIds.has(id)) {
+    STATE.selectedIds.delete(id);
+    if (STATE.lastSelectedId === id)
+      STATE.lastSelectedId = STATE.selectedIds.size > 0 ? [...STATE.selectedIds].at(-1) : null;
+    STATE.vertexLG.clearLayers();
+    document.getElementById('vhandles').innerHTML = '';
+  }
+  refreshEditableLayer();
+  computeStats();
+}
+
+// ── Stage 3: change type (called from stats table dropdown) ───────────────────
+
+function changeParcelType(id, type) {
+  const p = STATE.editableParcels[id];
+  if (!p) return;
+  pushHistory();
+  p.type = type;
+  refreshEditableLayer();
+  if (STATE.selectedIds.has(id) && STATE.selectedIds.size === 1) renderVertexHandles(id);
+  computeStats();
+}
+
+// ── Stage 3: tracing mode ─────────────────────────────────────────────────────
+
+function startTracing() {
+  STATE.origLG.clearLayers();
+  STATE.boundaryLG.clearLayers();
+  STATE.editLG.clearLayers();
+  STATE.vertexLG.clearLayers();
+  document.getElementById('vhandles').innerHTML = '';
+  STATE.originalFeatures = [];
+  STATE.editableParcels  = {};
+  STATE.selectedIds      = new Set();
+  STATE.lastSelectedId   = null;
+  cancelDraw();
+
+  STATE.tracingMode = true;
+  STATE.activeTool  = 'draw';
+  document.getElementById('map').classList.add('drawing-cursor');
+  document.getElementById('btn-trace').style.display        = 'none';
+  document.getElementById('btn-done-tracing').style.display = '';
+  document.getElementById('btn-upload-kml').disabled        = true;
+  TOOL_BTNS.forEach(t => document.getElementById('btn-' + t)?.classList.remove('active'));
+}
+
+function addTracedOriginal(verts) {
+  const i       = STATE.originalFeatures.length;
+  const id      = generateId();
+  const name    = `Parcel ${String.fromCharCode(65 + i)}`;
+  const coords  = latlngsToCoords(verts);
+  const geojson = turf.feature({ type: 'Polygon', coordinates: [coords] }, { name });
+  STATE.originalFeatures.push({ id, name, area: turf.area(geojson), geojson });
+
+  const poly = L.polygon(verts, {
+    color: '#c0c0c0', weight: 1.5, dashArray: '6 5',
+    fillColor: '#d8d8d8', fillOpacity: 0.08, interactive: false
+  });
+  poly.bindTooltip(name, { permanent: true, direction: 'center', className: 'orig-label' });
+  STATE.origLG.addLayer(poly);
+  computeProjectBoundary();
+  // Stay in draw mode so user can trace the next parcel
+}
+
+function doneTracing() {
+  if (STATE.originalFeatures.length === 0) {
+    alert('Please trace at least one parcel first.');
+    return;
+  }
+  STATE.tracingMode = false;
+  document.getElementById('map').classList.remove('drawing-cursor');
+  document.getElementById('btn-trace').style.display        = '';
+  document.getElementById('btn-done-tracing').style.display = 'none';
+  document.getElementById('btn-upload-kml').disabled        = false;
+  activateTool('select');
+  createEditableCopies();
+}
+
+// ── Stage 4: computeStats ─────────────────────────────────────────────────────
+
+function computeStats() {
+  const params = {
+    maxRed:  parseFloat(document.getElementById('p-max-red').value)  || 30,
+    minOvlp: parseFloat(document.getElementById('p-min-ovlp').value) || 50,
+    maxVar:  parseFloat(document.getElementById('p-max-var').value)  || 15,
+  };
+
+  const origById = {};
+  STATE.originalFeatures.forEach(o => { origById[o.id] = o; });
+
+  const parcelStats = [];
+  const reductions  = [];   // reduction % for parcels that have originals
+  const overlaps    = [];   // overlap % for private parcels with originals
+  const turfPolys   = [];   // { id, tp } for coverage / overlap checks
+
+  for (const p of Object.values(STATE.editableParcels)) {
+    let tp;
+    try { tp = latlngsToTurf(p.latlngs); } catch(e) { continue; }
+    turfPolys.push({ id: p.id, tp });
+
+    const newArea  = turf.area(tp);
+    const orig     = p.originalId ? origById[p.originalId] : null;
+    const origArea = orig ? orig.area : null;
+
+    let deltaPercent   = null;
+    let overlapPercent = null;
+    const violations   = [];
+
+    if (orig) {
+      deltaPercent    = ((newArea - origArea) / origArea) * 100;
+      const reduction = -deltaPercent;                          // positive = parcel got smaller
+      if (reduction > params.maxRed) violations.push('reduction');
+      reductions.push(reduction);
+
+      // Overlap only for private parcels
+      if (p.type === 'Private parcel') {
+        try {
+          const inter    = turf.intersect(tp, orig.geojson);
+          overlapPercent = inter ? (turf.area(inter) / newArea) * 100 : 0;
+        } catch(e) { overlapPercent = 0; }
+        if (overlapPercent < params.minOvlp) violations.push('overlap');
+        overlaps.push(overlapPercent);
+      }
+    }
+
+    parcelStats.push({ id: p.id, name: p.name, type: p.type,
+                       newArea, origArea, deltaPercent, overlapPercent, violations });
+  }
+
+  // ── Type totals ───────────────────────────────────────────────────────────
+  let roadArea = 0, publicArea = 0, privateArea = 0;
+  parcelStats.forEach(ps => {
+    if      (ps.type === 'Road')                                                    roadArea    += ps.newArea;
+    else if (['Public commercial','Public social','Open space'].includes(ps.type))  publicArea  += ps.newArea;
+    else if (ps.type === 'Private parcel')                                          privateArea += ps.newArea;
+  });
+
+  const projArea = STATE.projectArea || 0;
+
+  // ── Expensive checks skipped during vertex drag ───────────────────────────
+  let coverageGap = null;
+  let hasOverlaps = false;
+
+  if (!dragState) {
+    if (turfPolys.length > 0 && STATE.projectBoundaryGeojson) {
+      try {
+        let union = turfPolys[0].tp;
+        for (let i = 1; i < turfPolys.length; i++) union = turf.union(union, turfPolys[i].tp);
+        const diff = turf.difference(STATE.projectBoundaryGeojson, union);
+        coverageGap = diff ? turf.area(diff) : 0;
+      } catch(e) { coverageGap = null; }
+    }
+
+    outer:
+    for (let i = 0; i < turfPolys.length; i++) {
+      for (let j = i + 1; j < turfPolys.length; j++) {
+        try {
+          const inter = turf.intersect(turfPolys[i].tp, turfPolys[j].tp);
+          if (inter && turf.area(inter) > 0.1) { hasOverlaps = true; break outer; }
+        } catch(e) {}
+      }
+    }
+  }
+
+  // ── Aggregates ────────────────────────────────────────────────────────────
+  const avg          = arr => arr.length ? arr.reduce((a,b) => a+b, 0) / arr.length : null;
+  const avgReduction    = avg(reductions);
+  const maxReduction    = reductions.length ? Math.max(...reductions) : null;
+  const minReduction    = reductions.length ? Math.min(...reductions) : null;
+  const reductionSpread = maxReduction !== null ? maxReduction - minReduction : null;
+  const avgOverlap      = avg(overlaps);
+  const minOverlap      = overlaps.length ? Math.min(...overlaps) : null;
+
+  let violationCount = parcelStats.reduce((s, ps) => s + ps.violations.length, 0);
+  if (reductionSpread !== null && reductionSpread > params.maxVar) violationCount++;
+
+  const summary = {
+    projectArea: projArea,
+    roadArea,    roadPct:    projArea ? roadArea    / projArea * 100 : 0,
+    publicArea,  publicPct:  projArea ? publicArea  / projArea * 100 : 0,
+    privateArea, privatePct: projArea ? privateArea / projArea * 100 : 0,
+    coverageGap, hasOverlaps,
+    avgReduction, maxReduction, minReduction, reductionSpread,
+    avgOverlap, minOverlap,
+    violationCount, params,
+  };
+
+  STATE.lastSummary = summary;
+  renderParcelTable(parcelStats, params);
+  renderSummary(summary);
+}
+
+// ── Stage 4: parcel table ─────────────────────────────────────────────────────
+
+const PARCEL_TYPES = ['Private parcel','Road','Public commercial','Public social','Open space'];
+
+function renderParcelTable(parcelStats, params) {
+  const tbody = document.getElementById('parcel-tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = parcelStats.map(ps => {
+    const ok       = ps.violations.length === 0;
+    const delta    = ps.deltaPercent;
+    const reduction = delta !== null ? -delta : null;     // positive = parcel shrank
+    const deltaClass = (reduction !== null && reduction > params.maxRed) ? 'val-bad' : '';
+    const deltaStr   = delta !== null
+      ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%` : '—';
+    const ovlpClass  = (ps.overlapPercent !== null && ps.overlapPercent < params.minOvlp)
+      ? 'val-bad' : '';
+    const ovlpStr    = ps.overlapPercent !== null
+      ? `${ps.overlapPercent.toFixed(1)}%` : '—';
+    const typeOpts   = PARCEL_TYPES.map(t =>
+      `<option value="${escHtml(t)}"${t === ps.type ? ' selected' : ''}>${escHtml(t)}</option>`
+    ).join('');
+    const shortName  = ps.name.length > 13 ? ps.name.slice(0, 12) + '…' : ps.name;
+
+    return `<tr data-parcel-id="${ps.id}" onclick="selectParcelFromTable('${ps.id}', event)">
+      <td><span class="dot ${ok ? 'dot-ok' : 'dot-err'}"></span></td>
+      <td title="${escHtml(ps.name)}">${escHtml(shortName)}</td>
+      <td><select class="type-select" onchange="changeParcelType('${ps.id}',this.value)">${typeOpts}</select></td>
+      <td>${formatArea(ps.newArea)}</td>
+      <td>${ps.origArea !== null ? formatArea(ps.origArea) : '—'}</td>
+      <td class="${deltaClass}">${deltaStr}</td>
+      <td class="${ovlpClass}">${ovlpStr}</td>
+    </tr>`;
+  }).join('');
+  updateTableOverflowHint();
+}
+
+function updateTableOverflowHint() {
+  const inner = document.getElementById('table-inner');
+  const wrap  = document.getElementById('table-scroll-wrap');
+  const badge = document.getElementById('table-cols-badge');
+  if (!inner || !wrap || !badge) return;
+
+  function refresh() {
+    const overflowing = inner.scrollWidth > inner.clientWidth + 2;
+    const atEnd       = inner.scrollLeft + inner.clientWidth >= inner.scrollWidth - 2;
+    wrap.classList.toggle('has-overflow', overflowing && !atEnd);
+    badge.classList.toggle('visible', overflowing);
+  }
+
+  refresh();
+  inner.onscroll = refresh;
+}
+
+function syncTableSelection() {
+  document.querySelectorAll('#parcel-tbody tr[data-parcel-id]').forEach(tr => {
+    tr.classList.toggle('row-selected', STATE.selectedIds.has(tr.dataset.parcelId));
+  });
+}
+
+function scrollRowIntoView(id) {
+  const tr = document.querySelector(`#parcel-tbody tr[data-parcel-id="${id}"]`);
+  if (tr) tr.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function selectParcelFromTable(id, event) {
+  if (event.target.closest('select')) return; // let type-dropdown clicks through
+  if (STATE.activeTool !== 'select') activateTool('select');
+
+  const ctrl  = event.ctrlKey || event.metaKey;
+  const shift = event.shiftKey;
+
+  if (ctrl) {
+    // Toggle this parcel in/out of the selection
+    if (STATE.selectedIds.has(id)) {
+      STATE.selectedIds.delete(id);
+      STATE.lastSelectedId = STATE.selectedIds.size > 0 ? [...STATE.selectedIds].at(-1) : null;
+    } else {
+      STATE.selectedIds.add(id);
+      STATE.lastSelectedId = id;
+    }
+    refreshEditableLayer();
+    if (STATE.selectedIds.size === 1) renderVertexHandles(STATE.lastSelectedId);
+    else { STATE.vertexLG.clearLayers(); document.getElementById('vhandles').innerHTML = ''; }
+    syncTableSelection();
+
+  } else if (shift && STATE.lastSelectedId) {
+    // Extend selection from lastSelectedId to id using table row order
+    const rowIds = [...document.querySelectorAll('#parcel-tbody tr[data-parcel-id]')]
+                     .map(r => r.dataset.parcelId);
+    const from = rowIds.indexOf(STATE.lastSelectedId);
+    const to   = rowIds.indexOf(id);
+    if (from !== -1 && to !== -1) {
+      const [lo, hi] = from < to ? [from, to] : [to, from];
+      rowIds.slice(lo, hi + 1).forEach(rid => STATE.selectedIds.add(rid));
+    }
+    STATE.lastSelectedId = id;
+    refreshEditableLayer();
+    STATE.vertexLG.clearLayers();
+    document.getElementById('vhandles').innerHTML = '';
+    syncTableSelection();
+
+  } else {
+    // Plain click: single select + fit bounds
+    selectPolygon(id);
+    const p = STATE.editableParcels[id];
+    if (p && p.latlngs.length) {
+      map.fitBounds(L.latLngBounds(p.latlngs), { padding: [40, 40], maxZoom: 19 });
+    }
+  }
+}
+
+// ── Stage 4: layout summary ───────────────────────────────────────────────────
+
+function renderSummary(s) {
+  const el = document.getElementById('summary-body');
+  if (!el) return;
+  const p = s.params;
+
+  const pct  = n  => n  != null ? n.toFixed(1)  + '%'  : '—';
+  const m2   = n  => n  != null ? formatArea(n) + ' m²' : '—';
+  const cls  = bad => bad ? 'val-bad' : 'sum-val';
+
+  const coverageHtml = s.coverageGap === null
+    ? '<span class="sum-val">—</span>'
+    : s.coverageGap <= 0.5
+      ? '<span class="val-ok">✓ Full coverage</span>'
+      : `<span class="val-bad">⚠ Gap: ${formatArea(s.coverageGap)} m²</span>`;
+
+  const overlapHtml  = s.hasOverlaps
+    ? '<span class="val-bad">⚠ Overlaps detected</span>'
+    : '<span class="val-ok">✓ No overlaps</span>';
+
+  const spreadBad  = s.reductionSpread !== null && s.reductionSpread > p.maxVar;
+  const maxRedBad  = s.maxReduction    !== null && s.maxReduction    > p.maxRed;
+  const minOvlpBad = s.minOverlap      !== null && s.minOverlap      < p.minOvlp;
+  const violBad    = s.violationCount  > 0;
+
+  el.innerHTML = `
+    <div class="sum-row"><span class="sum-label">Project area</span>         <span class="sum-val">${m2(s.projectArea)}</span></div>
+    <div class="sum-row"><span class="sum-label">Road area</span>            <span class="sum-val">${m2(s.roadArea)} (${pct(s.roadPct)})</span></div>
+    <div class="sum-row"><span class="sum-label">Public land area</span>     <span class="sum-val">${m2(s.publicArea)} (${pct(s.publicPct)})</span></div>
+    <div class="sum-row"><span class="sum-label">Private area</span>         <span class="sum-val">${m2(s.privateArea)} (${pct(s.privatePct)})</span></div>
+    <div class="sum-row"><span class="sum-label">Coverage</span>             <span>${coverageHtml}</span></div>
+    <div class="sum-row"><span class="sum-label">Polygon overlaps</span>     <span>${overlapHtml}</span></div>
+    <div class="sum-row"><span class="sum-label">Avg reduction</span>        <span class="sum-val">${pct(s.avgReduction)}</span></div>
+    <div class="sum-row"><span class="sum-label">Max reduction</span>        <span class="${cls(maxRedBad)}">${pct(s.maxReduction)}</span></div>
+    <div class="sum-row"><span class="sum-label">Min reduction</span>        <span class="sum-val">${pct(s.minReduction)}</span></div>
+    <div class="sum-row"><span class="sum-label">Reduction spread</span>     <span class="${cls(spreadBad)}">${pct(s.reductionSpread)}</span></div>
+    <div class="sum-row"><span class="sum-label">Avg overlap w/ orig</span>  <span class="sum-val">${pct(s.avgOverlap)}</span></div>
+    <div class="sum-row"><span class="sum-label">Min overlap w/ orig</span>  <span class="${cls(minOvlpBad)}">${pct(s.minOverlap)}</span></div>
+    <div class="sum-row"><span class="sum-label">Violations</span>           <span class="${cls(violBad)}">${s.violationCount}</span></div>
+  `;
+}
+
+// ── Stage 5: undo / history ───────────────────────────────────────────────────
+
+function serializeEditables() {
+  const out = {};
+  Object.values(STATE.editableParcels).forEach(p => {
+    out[p.id] = {
+      id:         p.id,
+      name:       p.name,
+      type:       p.type,
+      latlngs:    p.latlngs.map(ll => ({ lat: ll.lat, lng: ll.lng })),
+      originalId: p.originalId,
+    };
+  });
+  return JSON.stringify(out);
+}
+
+function deserializeEditables(json) {
+  const raw     = JSON.parse(json);
+  const parcels = {};
+  Object.values(raw).forEach(p => {
+    parcels[p.id] = {
+      id:         p.id,
+      name:       p.name,
+      type:       p.type,
+      latlngs:    p.latlngs.map(c => L.latLng(c.lat, c.lng)),
+      originalId: p.originalId,
+    };
+  });
+  return parcels;
+}
+
+function pushHistory() {
+  STATE.history.push(serializeEditables());
+  if (STATE.history.length > MAX_HISTORY) STATE.history.shift();
+}
+
+function undo() {
+  if (STATE.history.length === 0) return;
+  STATE.editableParcels = deserializeEditables(STATE.history.pop());
+  STATE.selectedIds    = new Set();
+  STATE.lastSelectedId = null;
+  STATE.vertexLG.clearLayers();
+  document.getElementById('vhandles').innerHTML = '';
+  refreshEditableLayer();
+  syncTableSelection();
+  computeStats();
+}
+
+// ── Stage 5: export KML ───────────────────────────────────────────────────────
+
+async function exportKML() {
+  if (Object.keys(STATE.editableParcels).length === 0) {
+    alert('Nothing to export yet.');
+    return;
+  }
+
+  const originals  = STATE.originalFeatures.map(o => ({
+    type: 'Feature',
+    properties: { name: o.name },
+    geometry: o.geojson.geometry,
+  }));
+  const readjusted = Object.values(STATE.editableParcels).map(p => ({
+    type: 'Feature',
+    properties: { name: p.name, type: p.type },
+    geometry: { type: 'Polygon', coordinates: [latlngsToCoords(p.latlngs)] },
+  }));
+
+  try {
+    const res = await fetch('/api/export/kml', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ originals, readjusted }),
+    });
+    if (!res.ok) throw new Error('Server returned ' + res.status);
+    downloadBlob(await res.blob(), 'readjusted_layout.kml');
+  } catch(e) {
+    // Fallback: generate KML in the browser (works on file://)
+    const kml = buildKMLBrowser(originals, readjusted);
+    downloadBlob(
+      new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' }),
+      'readjusted_layout.kml'
+    );
+  }
+}
+
+function buildKMLBrowser(originals, readjusted) {
+  const placemark = feat => {
+    const name     = feat.properties?.name || 'Unnamed';
+    const desc     = feat.properties?.type || '';
+    const ring     = feat.geometry.coordinates[0];
+    const coordStr = ring.map(c => `${c[0]},${c[1]},0`).join(' ');
+    return `    <Placemark>
+      <name>${escHtml(name)}</name>
+      <description>${escHtml(desc)}</description>
+      <Polygon><outerBoundaryIs><LinearRing>
+        <coordinates>${coordStr}</coordinates>
+      </LinearRing></outerBoundaryIs></Polygon>
+    </Placemark>`;
+  };
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <Folder><name>Originals</name>
+${originals.map(placemark).join('\n')}
+  </Folder>
+  <Folder><name>Readjusted layout</name>
+${readjusted.map(placemark).join('\n')}
+  </Folder>
+</Document></kml>`;
+}
+
+// ── Stage 5: export CSV (browser-only) ───────────────────────────────────────
+
+function exportCSV() {
+  if (Object.keys(STATE.editableParcels).length === 0) {
+    alert('Nothing to export yet.');
+    return;
+  }
+
+  const origById = {};
+  STATE.originalFeatures.forEach(o => { origById[o.id] = o; });
+
+  const header = ['Name','Type','New area (m²)','Original area (m²)','Area change (%)','Overlap with original (%)'];
+  const rows   = [header];
+
+  for (const p of Object.values(STATE.editableParcels)) {
+    let tp;
+    try { tp = latlngsToTurf(p.latlngs); } catch(e) { continue; }
+    const newArea  = turf.area(tp);
+    const orig     = p.originalId ? origById[p.originalId] : null;
+    let   deltaStr = '', ovlpStr = '';
+
+    if (orig) {
+      deltaStr = (((newArea - orig.area) / orig.area) * 100).toFixed(2);
+      if (p.type === 'Private parcel') {
+        try {
+          const inter = turf.intersect(tp, orig.geojson);
+          ovlpStr = inter ? ((turf.area(inter) / newArea) * 100).toFixed(2) : '0.00';
+        } catch(e) { ovlpStr = '0.00'; }
+      }
+    }
+
+    rows.push([
+      p.name, p.type,
+      Math.round(newArea),
+      orig ? Math.round(orig.area) : '',
+      deltaStr,
+      ovlpStr,
+    ]);
+  }
+
+  // ── Layout summary section ────────────────────────────────────────────────
+  const s = STATE.lastSummary;
+  if (s) {
+    const p   = s.params;
+    const pct = n => n != null ? n.toFixed(2) + '%' : '';
+    const m2  = n => n != null ? String(Math.round(n))  : '';
+    const coverageVal = s.coverageGap === null ? '' :
+                        s.coverageGap <= 0.5   ? 'Full coverage' :
+                        `Gap: ${Math.round(s.coverageGap)} m²`;
+
+    rows.push([], ['LAYOUT SUMMARY', '']);
+    const srows = [
+      ['Project area (m²)',            m2(s.projectArea)],
+      ['Road area (m²)',               m2(s.roadArea)],
+      ['Road area (%)',                pct(s.roadPct)],
+      ['Public land area (m²)',        m2(s.publicArea)],
+      ['Public land area (%)',         pct(s.publicPct)],
+      ['Private area (m²)',            m2(s.privateArea)],
+      ['Private area (%)',             pct(s.privatePct)],
+      ['Coverage',                     coverageVal],
+      ['Polygon overlaps',             s.hasOverlaps ? 'Yes' : 'No'],
+      ['Avg reduction (%)',            pct(s.avgReduction)],
+      ['Max reduction (%)',            pct(s.maxReduction)],
+      ['Min reduction (%)',            pct(s.minReduction)],
+      ['Reduction spread (%)',         pct(s.reductionSpread)],
+      ['Avg overlap w/ original (%)',  pct(s.avgOverlap)],
+      ['Min overlap w/ original (%)',  pct(s.minOverlap)],
+      ['Violations',                   String(s.violationCount)],
+      [],
+      ['CONSTRAINTS', ''],
+      ['Max reduction (%)',            pct(p.maxRed)],
+      ['Min overlap (%)',              pct(p.minOvlp)],
+      ['Max variation (%)',            pct(p.maxVar)],
+    ];
+    rows.push(...srows);
+  }
+
+  const csv = rows.map(r =>
+    r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+  ).join('\r\n');
+
+  downloadBlob(new Blob(['﻿', csv], { type: 'text/csv;charset=utf-8;' }), 'landre_stats.csv');
+}
+
+// ── Stage 5: blob download helper ────────────────────────────────────────────
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── Shrink selected parcel ────────────────────────────────────────────────────
+
+function shrinkSelected() {
+  const pct = parseFloat(document.getElementById('shrink-pct').value);
+  if (isNaN(pct) || pct <= 0 || pct >= 100) {
+    alert('Please enter a percentage between 0 and 100 (exclusive).');
+    return;
+  }
+  if (STATE.selectedIds.size === 0) {
+    alert('Please select at least one parcel first.');
+    return;
+  }
+
+  const origById = {};
+  STATE.originalFeatures.forEach(o => { origById[o.id] = o; });
+
+  pushHistory();
+
+  for (const id of STATE.selectedIds) {
+    const p = STATE.editableParcels[id];
+    if (!p) continue;
+
+    let tp;
+    try { tp = latlngsToTurf(p.latlngs); } catch(e) { continue; }
+
+    const orig        = p.originalId ? origById[p.originalId] : null;
+    const currentArea = turf.area(tp);
+    const refArea     = orig ? orig.area : currentArea;
+    const targetArea  = refArea * (1 - pct / 100);
+    if (targetArea <= 0) continue;
+
+    // Area scales as factor², so to hit targetArea from currentArea:
+    const scaleFactor = Math.sqrt(targetArea / currentArea);
+    const scaled      = turf.transformScale(tp, scaleFactor);
+    p.latlngs         = coordsToLatLngs(scaled.geometry.coordinates);
+  }
+
+  refreshEditableLayer();
+  if (STATE.selectedIds.size === 1) renderVertexHandles(STATE.lastSelectedId);
+  computeStats();
+}
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+initMap();
+</script>
+</body>
+</html>
