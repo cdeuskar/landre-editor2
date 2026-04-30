@@ -71,19 +71,55 @@ async def upload_kml(file: UploadFile = File(...)):
 
 @app.post("/api/export/kml")
 async def export_kml(data: dict):
-    originals = data.get("originals", [])
+    import html as _html
+
+    originals  = data.get("originals", [])
     readjusted = data.get("readjusted", [])
 
-    def placemark(feature):
-        props = feature.get("properties", {})
-        name = props.get("name", "Unnamed")
-        ptype = props.get("type", "")
-        coords = feature["geometry"]["coordinates"][0]
-        coord_str = " ".join(f"{c[0]},{c[1]},0" for c in coords)
+    # KML colours are aabbggrr (alpha, blue, green, red)
+    def hex_to_kml(hex_color: str, opacity: float = 1.0) -> str:
+        h = hex_color.lstrip("#")
+        r, g, b = h[0:2], h[2:4], h[4:6]
+        a = format(round(opacity * 255), "02x")
+        return (a + b + g + r).lower()
+
+    # (styleId, lineHex, lineOpacity, fillHex, fillOpacity, lineWidth)
+    STYLES = [
+        ("style-private-parcel", "#1a7a1a", 1.0, "#90ee90", 0.45, 2.0),
+        ("style-road",           "#333333", 1.0, "#888888", 0.65, 2.0),
+        ("style-public",         "#1a5276", 1.0, "#aed6f1", 0.55, 2.0),
+        ("style-open-space",     "#1a5c4a", 1.0, "#a2d9ce", 0.55, 2.0),
+        ("style-original",       "#c0c0c0", 1.0, "#d8d8d8", 0.08, 1.5),
+    ]
+    TYPE_STYLE = {
+        "Private parcel": "style-private-parcel",
+        "Road":           "style-road",
+        "Public":         "style-public",
+        "Open space":     "style-open-space",
+    }
+
+    def style_xml(s):
+        sid, lc, lo, fc, fo, w = s
+        return (
+            f'  <Style id="{sid}">\n'
+            f'    <LineStyle><color>{hex_to_kml(lc, lo)}</color><width>{w}</width></LineStyle>\n'
+            f'    <PolyStyle><color>{hex_to_kml(fc, fo)}</color></PolyStyle>\n'
+            f'  </Style>'
+        )
+
+    def placemark(feature, is_original=False):
+        props      = feature.get("properties", {})
+        name       = _html.escape(props.get("name", "Unnamed"))
+        ptype      = props.get("type", "")
+        coords     = feature["geometry"]["coordinates"][0]
+        coord_str  = " ".join(f"{c[0]},{c[1]},0" for c in coords)
+        sid        = "style-original" if is_original else TYPE_STYLE.get(ptype, "style-private-parcel")
+        desc_line  = f"      <description>{_html.escape(ptype)}</description>\n" if ptype else ""
         return (
             f"    <Placemark>\n"
             f"      <name>{name}</name>\n"
-            f"      <description>{ptype}</description>\n"
+            f"{desc_line}"
+            f"      <styleUrl>#{sid}</styleUrl>\n"
             f"      <Polygon><outerBoundaryIs><LinearRing>\n"
             f"        <coordinates>{coord_str}</coordinates>\n"
             f"      </LinearRing></outerBoundaryIs></Polygon>\n"
@@ -93,8 +129,9 @@ async def export_kml(data: dict):
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<kml xmlns="http://www.opengis.net/kml/2.2"><Document>',
+        *[style_xml(s) for s in STYLES],
         "  <Folder><name>Originals</name>",
-        *[placemark(f) for f in originals],
+        *[placemark(f, True) for f in originals],
         "  </Folder>",
         "  <Folder><name>Readjusted layout</name>",
         *[placemark(f) for f in readjusted],
