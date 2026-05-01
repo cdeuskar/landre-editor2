@@ -128,6 +128,12 @@
     .dot-err { background: #e74c3c; }
     .val-bad { color: #c0392b; font-weight: 600; }
     .val-ok  { color: #27ae60; }
+    .sum-row.row-ok  { background: #dcfce7; border-radius: 3px; }
+    @keyframes flashRowGreen {
+      0%   { background: #86efac; }
+      100% { background: #dcfce7; }
+    }
+    .sum-row.row-flash-ok { animation: flashRowGreen 0.7s ease-out; border-radius: 3px; }
     .type-select { font-size: 11px; border: 1px solid #ccc; border-radius: 2px;
                    padding: 1px 2px; max-width: 90px; }
 
@@ -269,6 +275,51 @@
       z-index: 2000; pointer-events: none; white-space: nowrap;
     }
     #edge-op-hint.visible { display: block; }
+
+    /* ── User guide overlay ── */
+    #guide-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.55); z-index: 10000;
+      align-items: center; justify-content: center;
+    }
+    #guide-overlay.open { display: flex; }
+    #guide-box {
+      background: #fff; border-radius: 6px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.35);
+      width: 90vw; max-width: 860px;
+      height: 90vh; display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    #guide-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; border-bottom: 1px solid #e0e0e0;
+      background: #2c3e50; color: #fff; flex-shrink: 0;
+    }
+    #guide-header h2 { margin: 0; font-size: 16px; font-weight: 700; }
+    #guide-close {
+      background: none; border: none; color: #fff; font-size: 22px;
+      cursor: pointer; line-height: 1; padding: 0 2px;
+    }
+    #guide-close:hover { color: #f0c040; }
+    #guide-body {
+      overflow-y: auto; padding: 22px 28px; flex: 1;
+      font-size: 13.5px; line-height: 1.65; color: #222;
+    }
+    #guide-body h3 {
+      font-size: 13px; text-transform: uppercase; letter-spacing: .05em;
+      color: #2c3e50; margin: 20px 0 6px; border-bottom: 1px solid #e8e8e8;
+      padding-bottom: 4px;
+    }
+    #guide-body h3:first-child { margin-top: 0; }
+    #guide-body p  { margin: 0 0 10px; }
+    #guide-body ul { margin: 0 0 10px; padding-left: 20px; }
+    #guide-body li { margin-bottom: 5px; }
+    #guide-body .tip {
+      background: #eef6ff; border-left: 4px solid #2980b9;
+      border-radius: 0 4px 4px 0; padding: 10px 14px;
+      margin: 12px 0; font-size: 13px;
+    }
+    #guide-body .tip strong { color: #1a5276; }
   </style>
 </head>
 <body>
@@ -307,14 +358,75 @@
   <hr class="tool-sep">
   <button class="tool-btn" id="btn-tog-orig"  onclick="toggleOriginals()">👁 Hide originals</button>
   <button class="tool-btn" id="btn-tog-edit"  onclick="toggleEditables()">👁 Hide new parcels</button>
+  <button class="tool-btn active" id="btn-delta-gradient" onclick="toggleDeltaGradient()">Δ% color gradient</button>
   <hr class="tool-sep">
   <button class="tool-btn" onclick="exportKML()">⬇ Export KML</button>
+  <hr class="tool-sep">
+  <button class="tool-btn" onclick="openGuide()">? User Guide</button>
   <hr class="tool-sep">
   <div id="basemap-ctrl">
     <label><input type="radio" name="bm" value="satellite" checked
                   onchange="switchBasemap('satellite')"> Satellite</label>
     <label><input type="radio" name="bm" value="osm"
                   onchange="switchBasemap('osm')"> OpenStreetMap</label>
+  </div>
+</div>
+
+<!-- ── User guide overlay ───────────────────────────────────────────────── -->
+<div id="guide-overlay" onclick="closeGuide(event)">
+  <div id="guide-box">
+    <div id="guide-header">
+      <h2>LandRe — User Guide</h2>
+      <button id="guide-close" onclick="closeGuideBtn()">✕</button>
+    </div>
+    <div id="guide-body">
+
+      <h3>What is LandRe?</h3>
+      <p>LandRe is a planning tool designed to help you quickly create and adjust land readjustment layouts. It lets you experiment with different configurations and explore options before committing to a design — making it easier to facilitate discussions with stakeholders and test ideas in real time.</p>
+      <p><strong>Important:</strong> The outputs produced by this app are intended for planning exploration and discussion only. They are <em>not</em> official site plans or survey-grade documents.</p>
+
+      <h3>Getting started</h3>
+      <p>Begin by loading the original parcels for your project area. You have two options:</p>
+      <ul>
+        <li><strong>Upload KML</strong> — import a KML file containing the original parcel boundaries.</li>
+        <li><strong>Trace parcels</strong> — draw parcels directly on the satellite map by clicking to place vertices. Click the first vertex again (or press <em>Done tracing</em>) to close each polygon.</li>
+      </ul>
+      <p>Once loaded, original parcels appear on the map as a reference layer. Use <strong>Edit originals</strong> if you need to adjust any of the source boundaries.</p>
+
+      <h3>Readjusting parcels</h3>
+      <p>Use the tools in the left toolbar to build your new layout:</p>
+      <ul>
+        <li><strong>Select / Reshape</strong> — click a parcel to select it, then drag its vertices or edges to reshape it. Hold <em>Shift</em> while dragging an edge to keep it perpendicular. Shared vertices between adjacent parcels are highlighted in purple; dragging one moves both simultaneously so boundaries stay aligned.</li>
+        <li><strong>Draw polygon</strong> — draw a new parcel from scratch. Vertices snap to existing corners and road intersections automatically.</li>
+        <li><strong>Draw road</strong> — trace a road centreline; the app generates the road polygon from a configurable width.</li>
+        <li><strong>Delete polygon</strong> — click a parcel to remove it.</li>
+        <li><strong>Resize selected parcels</strong> — type a percentage and click the button to shrink or grow selected parcels uniformly.</li>
+        <li><strong>Clip overlaps</strong> — automatically resolves overlapping parcels (smaller parcels take priority) and trims any parcel area that overlaps a road.</li>
+        <li><strong>Clip spillover</strong> — trims any parcel area that falls outside the project boundary.</li>
+      </ul>
+      <p>Use <strong>Undo / Redo</strong> (or Ctrl+Z / Ctrl+Y) at any time to step back through your changes.</p>
+
+      <h3>Understanding the statistics panel</h3>
+      <p>The right panel shows a table of all parcels with key metrics updated in real time as you edit:</p>
+      <ul>
+        <li><strong>Δ%</strong> — how much each parcel has grown or shrunk relative to its original area. A negative value means the parcel is smaller than before.</li>
+        <li><strong>Overlap w/ orig</strong> — what percentage of the new parcel footprint coincides with its original location.</li>
+        <li><strong>Spillover</strong> — area that falls outside the project boundary.</li>
+        <li><strong>Violations</strong> — the total count of parcels that exceed the configured thresholds (maximum reduction, minimum overlap, minimum size). When this reaches zero, the row turns green.</li>
+      </ul>
+      <p>You can sort the table by any column and adjust the threshold parameters at the top of the panel.</p>
+
+      <div class="tip">
+        <strong>Tip — Δ% colour gradient:</strong> Turn on the <em>Δ% color gradient</em> button in the toolbar to colour private parcels from red (most reduced) to green (least reduced). This gives you an immediate visual read of which parcels are carrying a disproportionate share of the land contribution — those in red are the ones most in need of adjustment to equalize the reduction across owners.
+      </div>
+
+      <h3>Exporting your work</h3>
+      <ul>
+        <li><strong>Export KML</strong> — saves the current parcel layout as a KML file you can open in Google Earth or other GIS tools.</li>
+        <li><strong>Export CSV</strong> — saves the statistics table as a spreadsheet.</li>
+      </ul>
+
+    </div>
   </div>
 </div>
 
@@ -677,6 +789,20 @@ function getTypeStyle(type) {
   }[type] || { color: '#1a7a1a', fillColor: '#90ee90', fillOpacity: 0.45 };
 }
 
+function lerpHex(r1, g1, b1, r2, g2, b2, t) {
+  const r = Math.round(r1 + (r2 - r1) * t);
+  const g = Math.round(g1 + (g2 - g1) * t);
+  const b = Math.round(b1 + (b2 - b1) * t);
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function toggleDeltaGradient() {
+  _deltaGradientMode = !_deltaGradientMode;
+  const btn = document.getElementById('btn-delta-gradient');
+  if (btn) btn.classList.toggle('active', _deltaGradientMode);
+  refreshEditableLayer();
+}
+
 function formatArea(m2) {
   return m2 == null ? '—' : Math.round(m2).toLocaleString();
 }
@@ -880,9 +1006,33 @@ function refreshEditableLayer() {
   STATE.editLG.clearLayers();
   // Vertex handles remain managed by Stage 3 (selectPolygon / deselectAll)
 
+  // Build delta gradient lookup for Private parcels if mode is active
+  let _gradientMap = null, _gradMin = 0, _gradRange = 0;
+  if (_deltaGradientMode && STATE.lastParcelStats?.length) {
+    _gradientMap = {};
+    const deltas = [];
+    STATE.lastParcelStats.forEach(ps => {
+      if (ps.type === 'Private parcel' && ps.deltaPercent !== null) {
+        _gradientMap[ps.id] = ps.deltaPercent;
+        deltas.push(ps.deltaPercent);
+      }
+    });
+    _gradMin   = deltas.length ? Math.min(...deltas) : 0;
+    _gradRange = deltas.length ? Math.max(...deltas) - _gradMin : 0;
+  }
+
   const _editOrigMode = STATE.activeTool === 'edit-orig' || STATE.activeTool === 'ruler';
   Object.values(STATE.editableParcels).forEach(parcel => {
-    const style    = getTypeStyle(parcel.type);
+    let style = getTypeStyle(parcel.type);
+    if (_gradientMap && parcel.type === 'Private parcel' && _gradientMap[parcel.id] !== undefined) {
+      const t = _gradRange > 0 ? (_gradientMap[parcel.id] - _gradMin) / _gradRange : 0.5;
+      // t=0 → most shrinkage (red), t=1 → least shrinkage (green)
+      style = {
+        fillColor:   lerpHex(192, 57, 43,  39, 174, 96, t),
+        color:       lerpHex(120, 30, 20,  20, 100, 50, t),
+        fillOpacity: 0.65,
+      };
+    }
     const selected = STATE.selectedIds.has(parcel.id);
     const poly     = L.polygon(parcel.latlngs, {
       ...style,
@@ -1103,15 +1253,16 @@ function allPolyEdges() {
   return edges;
 }
 
-// exclude: optional { parcelId, vertexIdx } — skips that specific vertex (used during vertex drag)
+// exclude: optional { parcelId, vertexIdx } or array of same — skips those vertices
 function findSnapVertex(latlng, exclude = null, radius = SNAP_PX) {
   const pt = map.latLngToContainerPoint(latlng);
   let best = null, bestDist = Infinity;
   _snapType = 'vertex';
+  const excludes = exclude ? (Array.isArray(exclude) ? exclude : [exclude]) : [];
 
   Object.values(STATE.editableParcels).forEach(p =>
     p.latlngs.forEach((ll, i) => {
-      if (exclude && p.id === exclude.parcelId && i === exclude.vertexIdx) return;
+      if (excludes.some(ex => p.id === ex.parcelId && i === ex.vertexIdx)) return;
       const d = pt.distanceTo(map.latLngToContainerPoint(ll));
       if (d < radius && d < bestDist) { bestDist = d; best = ll; }
     })
@@ -1850,6 +2001,7 @@ function startCompoundVertexDrag(members, marker) {
     return { id, idx, lat: v.lat, lng: v.lng };
   });
   const anchor = starts[0];
+  const excludes = starts.map(s => ({ parcelId: s.id, vertexIdx: s.idx }));
   let _moved = false;
 
   function onMove(e) {
@@ -1858,8 +2010,11 @@ function startCompoundVertexDrag(members, marker) {
     const rawLL = map.containerPointToLatLng(
       L.point(e.clientX - rect.left, e.clientY - rect.top)
     );
-    const dLat = rawLL.lat - anchor.lat;
-    const dLng = rawLL.lng - anchor.lng;
+    const snapLL = findSnapVertex(rawLL, excludes);
+    const ll = snapLL || rawLL;
+    updateSnapMarker(snapLL);
+    const dLat = ll.lat - anchor.lat;
+    const dLng = ll.lng - anchor.lng;
     for (const s of starts) {
       const p = STATE.editableParcels[s.id];
       if (p) p.latlngs[s.idx] = L.latLng(s.lat + dLat, s.lng + dLng);
@@ -1878,6 +2033,7 @@ function startCompoundVertexDrag(members, marker) {
     document.removeEventListener('mouseup',   onUp);
     dragState = null;
     map.dragging.enable();
+    updateSnapMarker(null);
     if (_moved) {
       _justDragged = true;
       setTimeout(() => { _justDragged = false; }, 50);
@@ -2197,7 +2353,9 @@ const TABLE_COLS = [
   { key: 'spilloverArea',  label: 'Spill m²', type: 'num'  },
 ];
 
-let _tableSort = { col: null, dir: 0 };
+let _tableSort         = { col: null, dir: 0 };
+let _prevViolCount     = null;  // violation count from previous renderSummary call
+let _deltaGradientMode = true;
 
 function clickTableHeader(col) {
   const colDef = TABLE_COLS.find(c => c.key === col);
@@ -2394,8 +2552,18 @@ function renderSummary(s) {
     <div class="sum-row"><span class="sum-label">Variation in size change</span>     <span class="${cls(spreadBad)}">${pct(s.reductionSpread)}</span></div>
     <div class="sum-row"><span class="sum-label">Avg overlap w/ orig</span>  <span class="sum-val">${pct(s.avgOverlap)}</span></div>
     <div class="sum-row"><span class="sum-label">Min overlap w/ orig</span>  <span class="${cls(minOvlpBad)}">${pct(s.minOverlap)}</span></div>
-    <div class="sum-row"><span class="sum-label">Violations</span>           <span class="${cls(violBad)}">${s.violationCount}</span></div>
+    <div id="sum-violations-row" class="sum-row${violBad ? '' : ' row-ok'}"><span class="sum-label">Violations</span>           <span class="${cls(violBad)}">${s.violationCount}</span></div>
   `;
+
+  if (!violBad && _prevViolCount !== null && _prevViolCount > 0) {
+    const div = document.getElementById('sum-violations-row');
+    if (div) {
+      div.classList.remove('row-flash-ok');
+      void div.offsetWidth;
+      div.classList.add('row-flash-ok');
+    }
+  }
+  _prevViolCount = s.violationCount;
 }
 
 function flashOverlaps() {
@@ -2637,6 +2805,16 @@ ${readjusted.map(f => placemark(f, false)).join('\n')}
 
 // ── Stage 5: export CSV (browser-only) ───────────────────────────────────────
 
+function openGuide() {
+  document.getElementById('guide-overlay').classList.add('open');
+}
+function closeGuideBtn() {
+  document.getElementById('guide-overlay').classList.remove('open');
+}
+function closeGuide(e) {
+  if (e.target === document.getElementById('guide-overlay')) closeGuideBtn();
+}
+
 function exportCSV() {
   if (Object.keys(STATE.editableParcels).length === 0) {
     alert('Nothing to export yet.');
@@ -2819,8 +2997,10 @@ function clipSpillover() {
 }
 
 function clipOverlaps() {
-  const parcels = Object.values(STATE.editableParcels).filter(p => p.type !== 'Road');
-  if (parcels.length < 2) return;
+  const all     = Object.values(STATE.editableParcels);
+  const roads   = all.filter(p => p.type === 'Road');
+  const parcels = all.filter(p => p.type !== 'Road');
+  if (parcels.length + roads.length < 2) return;
 
   // Check whether any overlaps exist before touching history
   let anyOverlap = false;
@@ -2835,45 +3015,89 @@ function clipOverlaps() {
       } catch (_) {}
     }
   }
+  if (!anyOverlap) {
+    outer2: for (const parcel of parcels) {
+      for (const road of roads) {
+        try {
+          const inter = turf.intersect(
+            turf.polygon([latlngsToCoords(parcel.latlngs)]),
+            turf.polygon([latlngsToCoords(road.latlngs)])
+          );
+          if (inter && turf.area(inter) > 0.1) { anyOverlap = true; break outer2; }
+        } catch (_) {}
+      }
+    }
+  }
   if (!anyOverlap) { alert('No overlaps found.'); return; }
 
   pushHistory();
 
-  // Sort ascending by area so the smaller parcel always wins its full shape.
-  // Process smallest first: each parcel claims its territory; all subsequent
-  // (larger) parcels are clipped by the cumulative claimed area.
-  const sorted = parcels.map(p => {
-    let area = 0;
-    try { area = turf.area(turf.polygon([latlngsToCoords(p.latlngs)])); } catch (_) {}
-    return { p, area };
-  }).sort((a, b) => a.area - b.area);
-
-  let claimed = null;
-  for (const { p } of sorted) {
-    let feat;
-    try { feat = turf.polygon([latlngsToCoords(p.latlngs)]); } catch (_) { continue; }
-
-    if (claimed) {
-      let clipped;
-      try { clipped = turf.difference(feat, claimed); } catch (_) { clipped = null; }
-      if (clipped) {
-        const geom = clipped.geometry;
-        let coords;
-        if (geom.type === 'Polygon') {
-          coords = geom.coordinates[0];
-        } else if (geom.type === 'MultiPolygon') {
-          coords = geom.coordinates.reduce((a, b) =>
-            turf.area(turf.polygon(a)) >= turf.area(turf.polygon(b)) ? a : b
-          )[0];
-        }
-        if (coords) {
-          p.latlngs = coordsToLatLngs(coords);
-          feat = turf.polygon([coords]);
+  // Step 1: roads win — clip every non-road parcel against the union of all roads
+  if (roads.length > 0) {
+    let roadUnion = null;
+    for (const road of roads) {
+      try {
+        const feat = turf.polygon([latlngsToCoords(road.latlngs)]);
+        roadUnion = roadUnion ? (turf.union(roadUnion, feat) || roadUnion) : feat;
+      } catch (_) {}
+    }
+    if (roadUnion) {
+      for (const p of parcels) {
+        let feat;
+        try { feat = turf.polygon([latlngsToCoords(p.latlngs)]); } catch (_) { continue; }
+        let clipped;
+        try { clipped = turf.difference(feat, roadUnion); } catch (_) { clipped = null; }
+        if (clipped) {
+          const geom = clipped.geometry;
+          let coords;
+          if (geom.type === 'Polygon') {
+            coords = geom.coordinates[0];
+          } else if (geom.type === 'MultiPolygon') {
+            coords = geom.coordinates.reduce((a, b) =>
+              turf.area(turf.polygon(a)) >= turf.area(turf.polygon(b)) ? a : b
+            )[0];
+          }
+          if (coords) p.latlngs = coordsToLatLngs(coords);
         }
       }
     }
+  }
 
-    try { claimed = claimed ? (turf.union(claimed, feat) || claimed) : feat; } catch (_) {}
+  // Step 2: clip parcel-parcel overlaps (smallest parcel wins its full shape)
+  if (parcels.length >= 2) {
+    const sorted = parcels.map(p => {
+      let area = 0;
+      try { area = turf.area(turf.polygon([latlngsToCoords(p.latlngs)])); } catch (_) {}
+      return { p, area };
+    }).sort((a, b) => a.area - b.area);
+
+    let claimed = null;
+    for (const { p } of sorted) {
+      let feat;
+      try { feat = turf.polygon([latlngsToCoords(p.latlngs)]); } catch (_) { continue; }
+
+      if (claimed) {
+        let clipped;
+        try { clipped = turf.difference(feat, claimed); } catch (_) { clipped = null; }
+        if (clipped) {
+          const geom = clipped.geometry;
+          let coords;
+          if (geom.type === 'Polygon') {
+            coords = geom.coordinates[0];
+          } else if (geom.type === 'MultiPolygon') {
+            coords = geom.coordinates.reduce((a, b) =>
+              turf.area(turf.polygon(a)) >= turf.area(turf.polygon(b)) ? a : b
+            )[0];
+          }
+          if (coords) {
+            p.latlngs = coordsToLatLngs(coords);
+            feat = turf.polygon([coords]);
+          }
+        }
+      }
+
+      try { claimed = claimed ? (turf.union(claimed, feat) || claimed) : feat; } catch (_) {}
+    }
   }
 
   refreshEditableLayer();
