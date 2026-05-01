@@ -19,6 +19,7 @@
     #toolbar {
       position: absolute; top: 10px; left: 10px; z-index: 1000;
       display: flex; flex-direction: column; gap: 3px;
+      max-height: calc(100vh - 20px); overflow-y: auto;
     }
     .tool-sep { border: none; border-top: 1px solid #ccc; margin: 2px 0; }
     .tool-group-label {
@@ -35,11 +36,10 @@
     .tool-btn:hover { background: #f0f0f0; }
     .tool-btn.active { background: #2980b9; color: white; border-color: #1a6fa0; }
 
-    /* ── Basemap switcher (bottom-left, floating) ── */
+    /* ── Basemap switcher (inside toolbar) ── */
     #basemap-ctrl {
-      position: absolute; bottom: 28px; left: 10px; z-index: 1000;
       background: white; border: 1px solid #bbb; border-radius: 4px;
-      padding: 6px 10px; font-size: 12px;
+      padding: 5px 10px; font-size: 12px;
     }
     #basemap-ctrl label { display: flex; align-items: center; gap: 5px;
                           cursor: pointer; padding: 1px 0; }
@@ -148,7 +148,7 @@
     }
     .tool-shrink-row label { cursor: default; }
     .tool-shrink-row input[type=number] {
-      width: 46px; padding: 2px 4px; border: 1px solid #ccc;
+      width: 64px; padding: 2px 4px; border: 1px solid #ccc;
       border-radius: 3px; text-align: right; font-size: 12px;
     }
 
@@ -192,6 +192,10 @@
       background: #fff; border: 2.5px solid #e67e22; border-radius: 2px;
       cursor: grab; pointer-events: all; box-sizing: border-box;
     }
+    .vhandle-v.compound     { border-color: #7c3aed; }
+    .vhandle-m.compound     { border-color: #7c3aed; background: #c4b5fd; }
+    .vhandle-v.compound-sel { background: #7c3aed; border-color: #4c1d95; }
+    .vhandle-m.compound-sel { background: #7c3aed; border-color: #4c1d95; }
 
     /* ── Close-polygon pulse marker ── */
     @keyframes close-pulse {
@@ -279,6 +283,7 @@
   <button class="tool-btn" id="btn-trace"        onclick="startTracing()">✏️ Trace parcels</button>
   <button class="tool-btn" id="btn-done-tracing" onclick="doneTracing()"
           style="display:none">✔ Done tracing</button>
+  <button class="tool-btn" id="btn-edit-orig"   onclick="activateTool('edit-orig')">✏ Edit originals</button>
   <hr class="tool-sep">
   <div class="tool-group-label">Readjust parcels</div>
   <button class="tool-btn active" id="btn-select" onclick="activateTool('select')">↖ Select / Reshape</button>
@@ -292,15 +297,25 @@
   <button class="tool-btn" onclick="redo()">↪ Redo (Ctrl+Y)</button>
   <hr class="tool-sep">
   <div class="tool-shrink-row">
-    <label>Shrink&nbsp;%</label>
-    <input type="number" id="shrink-pct" value="10" min="0" max="100" step="1">
+    <label>Resize&nbsp;%</label>
+    <input type="number" id="shrink-pct" value="-10" min="-99" max="999" step="1">
   </div>
-  <button class="tool-btn" onclick="shrinkSelected()">↙ Shrink selected parcels</button>
+  <button class="tool-btn" onclick="shrinkSelected()">↕ Resize selected parcels</button>
+  <button class="tool-btn" onclick="clipOverlaps()">✂ Clip overlaps</button>
+  <button class="tool-btn" onclick="clipSpillover()">✂ Clip spillover</button>
+
   <hr class="tool-sep">
   <button class="tool-btn" id="btn-tog-orig"  onclick="toggleOriginals()">👁 Hide originals</button>
   <button class="tool-btn" id="btn-tog-edit"  onclick="toggleEditables()">👁 Hide new parcels</button>
   <hr class="tool-sep">
   <button class="tool-btn" onclick="exportKML()">⬇ Export KML</button>
+  <hr class="tool-sep">
+  <div id="basemap-ctrl">
+    <label><input type="radio" name="bm" value="satellite" checked
+                  onchange="switchBasemap('satellite')"> Satellite</label>
+    <label><input type="radio" name="bm" value="osm"
+                  onchange="switchBasemap('osm')"> OpenStreetMap</label>
+  </div>
 </div>
 
 <div id="road-dialog">
@@ -328,14 +343,6 @@
 <!-- hidden file input -->
 <input type="file" id="kml-input" accept=".kml" style="display:none"
        onchange="handleKMLFile(event)" />
-
-<!-- ── Basemap switcher ─────────────────────────────────────────────────── -->
-<div id="basemap-ctrl">
-  <label><input type="radio" name="bm" value="satellite" checked
-                onchange="switchBasemap('satellite')"> Satellite</label>
-  <label><input type="radio" name="bm" value="osm"
-                onchange="switchBasemap('osm')"> OpenStreetMap</label>
-</div>
 
 <!-- ── Side panel ───────────────────────────────────────────────────────── -->
 <div id="side-panel">
@@ -417,6 +424,7 @@
   </div>
 </div>
 
+
 <!-- ══════════════════════════════════════════════════════════════════════
      JavaScript — Stage 1: globals, map init, tool switching, UI helpers
      ══════════════════════════════════════════════════════════════════════ -->
@@ -437,9 +445,11 @@ const STATE = {
   activeTool:     'select',
   selectedIds:    new Set(),   // multi-select; shift-click to toggle
   lastSelectedId: null,        // most recent for vertex handles
+  selectedOrigId: null,        // selected original in edit-orig mode
   originalsVis:   true,
   boundaryVis:   true,
   editablesVis:  true,
+  compoundSel:   null,         // { type:'vertex'|'edge', members:[{id,idx}|{id,idxA,idxB}] }
 
   // drawing
   drawVerts:     [],           // L.LatLng[] during polygon draw
@@ -517,7 +527,16 @@ function initMap() {
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); }
-    if (e.key === 'Escape') { cancelDraw(); cancelEdgeOp(); closeEdgePopup(); cancelRuler(); }
+    if (e.key === 'Escape') {
+      const _tracingWithVerts = STATE.tracingMode && STATE.drawVerts.length > 0;
+      cancelDraw(); cancelEdgeOp(); closeEdgePopup(); cancelRuler();
+      if (STATE.tracingMode && !_tracingWithVerts) doneTracing();
+      if (STATE.activeTool === 'edit-orig' && STATE.selectedOrigId) {
+        STATE.selectedOrigId = null; _origVertexMarkers = [];
+        STATE.vertexLG.clearLayers(); document.getElementById('vhandles').innerHTML = '';
+        refreshOrigLayer();
+      }
+    }
     if (e.key === 'Enter') {
       const isRoad    = STATE.activeTool === 'draw-road';
       const isPolygon = STATE.activeTool === 'draw' || STATE.tracingMode;
@@ -541,10 +560,11 @@ function switchBasemap(type) {
 }
 
 // ── Tool activation ──────────────────────────────────────────────────────────
-const TOOL_BTNS = ['select', 'draw', 'draw-road', 'delete', 'pan', 'ruler'];
+const TOOL_BTNS = ['select', 'draw', 'draw-road', 'delete', 'pan', 'ruler', 'edit-orig'];
 
 function activateTool(name) {
   if (STATE.tracingMode && name !== 'select') return; // lock during tracing
+  if (STATE.activeTool === 'edit-orig' && name !== 'edit-orig') exitEditOrigMode();
 
   // Cancel any active draw / edge op / ruler first
   cancelDraw();
@@ -559,6 +579,11 @@ function activateTool(name) {
   });
 
   STATE.activeTool = name;
+
+  // Re-render editable layer now that activeTool is updated, so the interactive
+  // flag (disabled in edit-orig mode to let clicks reach original parcels) is correct.
+  refreshEditableLayer();
+  if (name === 'edit-orig') refreshOrigLayer();
 
   // Cursor
   const mapEl = document.getElementById('map');
@@ -668,6 +693,15 @@ function triggerKMLUpload() {
   document.getElementById('kml-input').click();
 }
 
+function hasDrawnParcels() {
+  return Object.keys(STATE.editableParcels).length > 0;
+}
+
+function confirmDestructive(action) {
+  return !hasDrawnParcels() ||
+    confirm(`${action} will discard all your drawn and readjusted parcels. Continue?`);
+}
+
 // ── Stage 2: coordinate helpers ──────────────────────────────────────────────
 
 // GeoJSON ring [[lng,lat],...] → L.LatLng[] (without closing duplicate)
@@ -697,6 +731,7 @@ async function handleKMLFile(e) {
   const file = e.target.files[0];
   if (!file) return;
   e.target.value = '';  // allow re-upload of same file
+  if (!confirmDestructive('Loading a new KML')) return;
 
   const formData = new FormData();
   formData.append('file', file);
@@ -784,25 +819,13 @@ function loadOriginals(features) {
     const lls = coordsToLatLngs(geojson.geometry.coordinates);
     lls.forEach(ll => allLatLngs.push(ll));
 
-    // Dashed grey semi-transparent reference polygon (not interactive)
-    const poly = L.polygon(lls, {
-      color: '#c0c0c0', weight: 1.5, dashArray: '6 5',
-      fillColor: '#d8d8d8', fillOpacity: 0.08,
-      interactive: false
-    });
-
-    poly.bindTooltip(name, {
-      permanent: true, direction: 'center',
-      className: 'orig-label'
-    });
-
-    STATE.origLG.addLayer(poly);
   });
 
   if (allLatLngs.length) {
     map.fitBounds(L.latLngBounds(allLatLngs), { padding: [50, 50] });
   }
 
+  refreshOrigLayer();
   computeProjectBoundary();
   createEditableCopies();
 }
@@ -857,14 +880,16 @@ function refreshEditableLayer() {
   STATE.editLG.clearLayers();
   // Vertex handles remain managed by Stage 3 (selectPolygon / deselectAll)
 
+  const _editOrigMode = STATE.activeTool === 'edit-orig' || STATE.activeTool === 'ruler';
   Object.values(STATE.editableParcels).forEach(parcel => {
     const style    = getTypeStyle(parcel.type);
     const selected = STATE.selectedIds.has(parcel.id);
     const poly     = L.polygon(parcel.latlngs, {
       ...style,
-      weight:    selected ? 3 : 2,
-      color:     selected ? '#e67e22' : style.color,
-      dashArray: null
+      weight:      selected ? 3 : 2,
+      color:       selected ? '#e67e22' : style.color,
+      dashArray:   null,
+      interactive: !_editOrigMode,
     });
 
     // ── Road label: pick longest centerline segment, position tooltip there ──
@@ -904,20 +929,22 @@ function refreshEditableLayer() {
       });
     }
 
-    poly.on('mousedown', e => {
-      if (STATE.activeTool === 'draw' || STATE.activeTool === 'draw-road' || STATE.tracingMode) return;
-      L.DomEvent.stopPropagation(e); startParcelDrag(parcel.id, e.originalEvent);
-    });
-    poly.on('click', e => {
-      if (STATE.activeTool === 'draw' || STATE.activeTool === 'draw-road' || STATE.tracingMode) return;
-      L.DomEvent.stopPropagation(e);
-      if (_parcelJustDragged) { _parcelJustDragged = false; return; }
-      handlePolygonClick(parcel.id, e);
-    });
-    poly.on('dblclick', e => {
-      if (STATE.activeTool === 'draw' || STATE.activeTool === 'draw-road' || STATE.tracingMode) return;
-      L.DomEvent.stopPropagation(e); renameParcel(parcel.id);
-    });
+    if (!_editOrigMode) {
+      poly.on('mousedown', e => {
+        if (STATE.activeTool === 'draw' || STATE.activeTool === 'draw-road' || STATE.tracingMode) return;
+        L.DomEvent.stopPropagation(e); startParcelDrag(parcel.id, e.originalEvent);
+      });
+      poly.on('click', e => {
+        if (STATE.activeTool === 'draw' || STATE.activeTool === 'draw-road' || STATE.tracingMode) return;
+        L.DomEvent.stopPropagation(e);
+        if (_parcelJustDragged) { _parcelJustDragged = false; return; }
+        handlePolygonClick(parcel.id, e);
+      });
+      poly.on('dblclick', e => {
+        if (STATE.activeTool === 'draw' || STATE.activeTool === 'draw-road' || STATE.tracingMode) return;
+        L.DomEvent.stopPropagation(e); renameParcel(parcel.id);
+      });
+    }
     poly._parcelId = parcel.id;
     STATE.editLG.addLayer(poly);
     // Override tooltip position to the longest-segment midpoint so it stays
@@ -997,6 +1024,12 @@ function onMapClick(e) {
     clickTimer = setTimeout(() => { clickTimer = null; _pendingClickLL = null; addDrawVertex(clickLL); }, 200);
   } else if (STATE.activeTool === 'select' || STATE.activeTool === 'delete') {
     deselectAll();
+  } else if (STATE.activeTool === 'edit-orig' && STATE.selectedOrigId) {
+    STATE.selectedOrigId = null;
+    _origVertexMarkers = [];
+    STATE.vertexLG.clearLayers();
+    document.getElementById('vhandles').innerHTML = '';
+    refreshOrigLayer();
   }
 }
 
@@ -1260,7 +1293,7 @@ function finishDrawing() {
   } else {
     if (verts.length < 3) return;
     const autoName = `Parcel ${String.fromCharCode(65 + Object.keys(STATE.editableParcels).length)}`;
-    openNameDialog(autoName, 'Private parcel', (name, type) => {
+    openNameDialog(autoName, 'Public', (name, type) => {
       pushHistory();
       const id = generateId();
       STATE.editableParcels[id] = { id, name, type, latlngs: verts, originalId: null };
@@ -1421,6 +1454,7 @@ function handlePolygonClick(id, e) {
 }
 
 function selectPolygon(id) {
+  STATE.compoundSel    = null;
   STATE.selectedIds    = new Set([id]);
   STATE.lastSelectedId = id;
   refreshEditableLayer();
@@ -1430,6 +1464,7 @@ function selectPolygon(id) {
 }
 
 function deselectAll() {
+  STATE.compoundSel    = null;
   STATE.selectedIds    = new Set();
   STATE.lastSelectedId = null;
   _vertexMarkers = [];
@@ -1437,6 +1472,38 @@ function deselectAll() {
   document.getElementById('vhandles').innerHTML = '';
   refreshEditableLayer();
   syncTableSelection();
+}
+
+// ── Compound vertex / edge helpers ────────────────────────────────────────────
+
+const _CMP_EPS = 1e-9;
+function _sameLL(a, b) {
+  return Math.abs(a.lat - b.lat) < _CMP_EPS && Math.abs(a.lng - b.lng) < _CMP_EPS;
+}
+function findCompoundVertexMembers(ll) {
+  const members = [];
+  for (const [pid, p] of Object.entries(STATE.editableParcels)) {
+    if (p.type === 'Road') continue;
+    p.latlngs.forEach((v, idx) => {
+      if (_sameLL(v, ll)) members.push({ id: pid, idx });
+    });
+  }
+  return members;
+}
+function findCompoundEdgeMembers(a, b) {
+  const members = [];
+  for (const [pid, p] of Object.entries(STATE.editableParcels)) {
+    if (p.type === 'Road') continue;
+    const n = p.latlngs.length;
+    for (let i = 0; i < n; i++) {
+      const va = p.latlngs[i];
+      const vb = p.latlngs[(i + 1) % n];
+      if ((_sameLL(va, a) && _sameLL(vb, b)) || (_sameLL(va, b) && _sameLL(vb, a))) {
+        members.push({ id: pid, idxA: i, idxB: (i + 1) % n });
+      }
+    }
+  }
+  return members;
 }
 
 function renderVertexHandles(id) {
@@ -1471,7 +1538,28 @@ function renderVertexHandles(id) {
   }
 
   p.latlngs.forEach((ll, idx) => {
-    const div = placeHandle(ll, 'vhandle-v', d => startVertexDrag(id, idx, d));
+    const cmembers = findCompoundVertexMembers(ll);
+    const isCompound = cmembers.length > 1;
+    let cls = 'vhandle-v';
+    if (isCompound) cls += ' compound';
+    if (isCompound && STATE.compoundSel?.type === 'vertex'
+        && STATE.compoundSel.members.some(m => m.id === id && m.idx === idx)) {
+      cls += ' compound-sel';
+    }
+    const div = placeHandle(ll, cls, (d) => {
+      const csel = STATE.compoundSel?.type === 'vertex'
+        && STATE.compoundSel.members.some(m => m.id === id && m.idx === idx);
+      if (csel) startCompoundVertexDrag(STATE.compoundSel.members, d);
+      else startVertexDrag(id, idx, d);
+    });
+    if (isCompound) {
+      div.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        e.preventDefault();
+        STATE.compoundSel = { type: 'vertex', members: cmembers };
+        renderVertexHandles(id);
+      });
+    }
     div.addEventListener('contextmenu', e => {
       e.preventDefault();
       e.stopPropagation();
@@ -1490,7 +1578,29 @@ function renderVertexHandles(id) {
     const a   = p.latlngs[i];
     const b   = p.latlngs[(i + 1) % n];
     const mid = L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2);
-    placeHandle(mid, 'vhandle-m', (d, e) => startEdgeDragOrInsert(id, i, mid, d, e));
+    const emembers = findCompoundEdgeMembers(a, b);
+    const isCompoundEdge = emembers.length > 1;
+    let eCls = 'vhandle-m';
+    if (isCompoundEdge) eCls += ' compound';
+    if (isCompoundEdge && STATE.compoundSel?.type === 'edge'
+        && STATE.compoundSel.members.some(m => m.id === id && m.idxA === i)) {
+      eCls += ' compound-sel';
+    }
+    const edgeDiv = placeHandle(mid, eCls, (d, e) => {
+      const csel = STATE.compoundSel?.type === 'edge'
+        && STATE.compoundSel.members.some(m => m.id === id && m.idxA === i);
+      if (csel) startCompoundEdgeDrag(STATE.compoundSel.members, d, e);
+      else startEdgeDragOrInsert(id, i, mid, d, e);
+    });
+    if (isCompoundEdge) {
+      edgeDiv.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        e.preventDefault();
+        closeEdgePopup();
+        STATE.compoundSel = { type: 'edge', members: emembers };
+        renderVertexHandles(id);
+      });
+    }
   }
 }
 
@@ -1502,15 +1612,29 @@ function startParcelDrag(id, downEvent) {
   if (!p) return;
   closeEdgePopup();
 
-  const _container  = map.getContainer();
-  const rect        = _container.getBoundingClientRect();
+  const _container   = map.getContainer();
+  const rect         = _container.getBoundingClientRect();
   const startClientX = downEvent.clientX;
   const startClientY = downEvent.clientY;
   const startLL      = map.containerPointToLatLng(
     L.point(startClientX - rect.left, startClientY - rect.top)
   );
-  const startLatlngs  = p.latlngs.map(ll => ({ lat: ll.lat, lng: ll.lng }));
-  const startRoadVerts = p.roadVerts ? p.roadVerts.map(ll => ({ lat: ll.lat, lng: ll.lng })) : null;
+
+  // Determine which parcels to drag: all selected if this parcel is in the selection,
+  // otherwise just this one.
+  const isMulti = STATE.selectedIds.has(id) && STATE.selectedIds.size > 1;
+  const dragIds = isMulti ? [...STATE.selectedIds] : [id];
+
+  // Snapshot starting geometry for every parcel being dragged
+  const snapshots = {};
+  for (const did of dragIds) {
+    const dp = STATE.editableParcels[did];
+    if (!dp) continue;
+    snapshots[did] = {
+      latlngs:   dp.latlngs.map(ll => ({ lat: ll.lat, lng: ll.lng })),
+      roadVerts: dp.roadVerts ? dp.roadVerts.map(ll => ({ lat: ll.lat, lng: ll.lng })) : null,
+    };
+  }
 
   let _moved = false;
   map.dragging.disable();
@@ -1521,7 +1645,6 @@ function startParcelDrag(id, downEvent) {
     if (!_moved && Math.hypot(dx, dy) < 3) return;
     if (!_moved) {
       pushHistory();
-      // Force-select this parcel and clear vertex handles during drag
       if (!STATE.selectedIds.has(id)) {
         STATE.selectedIds    = new Set([id]);
         STATE.lastSelectedId = id;
@@ -1536,8 +1659,14 @@ function startParcelDrag(id, downEvent) {
     );
     const dLat = curLL.lat - startLL.lat;
     const dLng = curLL.lng - startLL.lng;
-    p.latlngs = startLatlngs.map(s => L.latLng(s.lat + dLat, s.lng + dLng));
-    if (startRoadVerts) p.roadVerts = startRoadVerts.map(s => L.latLng(s.lat + dLat, s.lng + dLng));
+
+    for (const did of dragIds) {
+      const dp = STATE.editableParcels[did];
+      const sn = snapshots[did];
+      if (!dp || !sn) continue;
+      dp.latlngs = sn.latlngs.map(s => L.latLng(s.lat + dLat, s.lng + dLng));
+      if (sn.roadVerts) dp.roadVerts = sn.roadVerts.map(s => L.latLng(s.lat + dLat, s.lng + dLng));
+    }
 
     refreshEditableLayer();
     computeStats();
@@ -1635,16 +1764,30 @@ function startEdgeDragOrInsert(id, edgeIdx, midLatLng, marker, downEvent) {
   const startA = { lat: p.latlngs[idxA].lat, lng: p.latlngs[idxA].lng };
   const startB = { lat: p.latlngs[idxB].lat, lng: p.latlngs[idxB].lng };
 
+  // Perpendicular unit vector (screen-pixel space) for shift-constrained drag
+  const _ptA0   = map.latLngToContainerPoint(L.latLng(startA.lat, startA.lng));
+  const _ptB0   = map.latLngToContainerPoint(L.latLng(startB.lat, startB.lng));
+  const _elen   = Math.hypot(_ptB0.x - _ptA0.x, _ptB0.y - _ptA0.y);
+  const _perpX  = _elen > 0 ? -(_ptB0.y - _ptA0.y) / _elen : 0;
+  const _perpY  = _elen > 0 ?  (_ptB0.x - _ptA0.x) / _elen : 1;
+
   let _moved = false;
 
   function onMove(e) {
-    const dx = e.clientX - startClientX;
-    const dy = e.clientY - startClientY;
+    let dx = e.clientX - startClientX;
+    let dy = e.clientY - startClientY;
     if (!_moved && Math.hypot(dx, dy) < 3) return;
     if (!_moved) { pushHistory(); _moved = true; }
 
+    // Shift: constrain movement to perpendicular direction only
+    if (e.shiftKey) {
+      const proj = dx * _perpX + dy * _perpY;
+      dx = proj * _perpX;
+      dy = proj * _perpY;
+    }
+
     const curLL = map.containerPointToLatLng(
-      L.point(e.clientX - rect.left, e.clientY - rect.top)
+      L.point(startClientX + dx - rect.left, startClientY + dy - rect.top)
     );
     const dLat = curLL.lat - startLL.lat;
     const dLng = curLL.lng - startLL.lng;
@@ -1696,6 +1839,128 @@ function startEdgeDragOrInsert(id, edgeIdx, midLatLng, marker, downEvent) {
   document.addEventListener('mouseup',   onUp);
 }
 
+// ── Stage 3: compound vertex / edge drag ─────────────────────────────────────
+
+function startCompoundVertexDrag(members, marker) {
+  closeEdgePopup();
+  const _container = map.getContainer();
+  const rect = _container.getBoundingClientRect();
+  const starts = members.map(({ id, idx }) => {
+    const v = STATE.editableParcels[id]?.latlngs[idx];
+    return { id, idx, lat: v.lat, lng: v.lng };
+  });
+  const anchor = starts[0];
+  let _moved = false;
+
+  function onMove(e) {
+    if (!_moved) { pushHistory(); dragState = { compound: true }; }
+    _moved = true;
+    const rawLL = map.containerPointToLatLng(
+      L.point(e.clientX - rect.left, e.clientY - rect.top)
+    );
+    const dLat = rawLL.lat - anchor.lat;
+    const dLng = rawLL.lng - anchor.lng;
+    for (const s of starts) {
+      const p = STATE.editableParcels[s.id];
+      if (p) p.latlngs[s.idx] = L.latLng(s.lat + dLat, s.lng + dLng);
+    }
+    if (marker?.parentNode) {
+      const pt = map.latLngToContainerPoint(L.latLng(anchor.lat + dLat, anchor.lng + dLng));
+      marker.style.left = pt.x + 'px';
+      marker.style.top  = pt.y + 'px';
+    }
+    refreshEditableLayer();
+    computeStats();
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup',   onUp);
+    dragState = null;
+    map.dragging.enable();
+    if (_moved) {
+      _justDragged = true;
+      setTimeout(() => { _justDragged = false; }, 50);
+      if (STATE.lastSelectedId) renderVertexHandles(STATE.lastSelectedId);
+      computeStats();
+    }
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup',   onUp);
+}
+
+function startCompoundEdgeDrag(members, marker, downEvent) {
+  const _container = map.getContainer();
+  const rect = _container.getBoundingClientRect();
+  const startClientX = downEvent.clientX;
+  const startClientY = downEvent.clientY;
+  const startMouseLL = map.containerPointToLatLng(
+    L.point(startClientX - rect.left, startClientY - rect.top)
+  );
+  const starts = members.map(({ id, idxA, idxB }) => {
+    const p = STATE.editableParcels[id];
+    return { id, idxA, idxB,
+      latA: p.latlngs[idxA].lat, lngA: p.latlngs[idxA].lng,
+      latB: p.latlngs[idxB].lat, lngB: p.latlngs[idxB].lng };
+  });
+  const s0 = starts[0];
+  const _ptA0  = map.latLngToContainerPoint(L.latLng(s0.latA, s0.lngA));
+  const _ptB0  = map.latLngToContainerPoint(L.latLng(s0.latB, s0.lngB));
+  const _elen  = Math.hypot(_ptB0.x - _ptA0.x, _ptB0.y - _ptA0.y);
+  const _perpX = _elen > 0 ? -(_ptB0.y - _ptA0.y) / _elen : 0;
+  const _perpY = _elen > 0 ?  (_ptB0.x - _ptA0.x) / _elen : 1;
+  let _moved = false;
+
+  function onMove(e) {
+    let dx = e.clientX - startClientX;
+    let dy = e.clientY - startClientY;
+    if (!_moved && Math.hypot(dx, dy) < 3) return;
+    if (!_moved) { pushHistory(); dragState = { compound: true }; _moved = true; }
+    if (e.shiftKey) {
+      const proj = dx * _perpX + dy * _perpY;
+      dx = proj * _perpX;
+      dy = proj * _perpY;
+    }
+    const curLL = map.containerPointToLatLng(
+      L.point(startClientX + dx - rect.left, startClientY + dy - rect.top)
+    );
+    const dLat = curLL.lat - startMouseLL.lat;
+    const dLng = curLL.lng - startMouseLL.lng;
+    for (const s of starts) {
+      const p = STATE.editableParcels[s.id];
+      if (!p) continue;
+      p.latlngs[s.idxA] = L.latLng(s.latA + dLat, s.lngA + dLng);
+      p.latlngs[s.idxB] = L.latLng(s.latB + dLat, s.lngB + dLng);
+    }
+    if (marker?.parentNode) {
+      const midPt = map.latLngToContainerPoint(
+        L.latLng((s0.latA + s0.latB) / 2 + dLat, (s0.lngA + s0.lngB) / 2 + dLng)
+      );
+      marker.style.left = midPt.x + 'px';
+      marker.style.top  = midPt.y + 'px';
+    }
+    refreshEditableLayer();
+    computeStats();
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup',   onUp);
+    dragState = null;
+    map.dragging.enable();
+    if (_moved) {
+      _justDragged = true;
+      setTimeout(() => { _justDragged = false; }, 50);
+      if (STATE.lastSelectedId) renderVertexHandles(STATE.lastSelectedId);
+      computeStats();
+    }
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup',   onUp);
+}
+
 // ── Stage 3: insert / delete ──────────────────────────────────────────────────
 
 function insertVertexAndDrag(id, beforeIdx, latlng) {
@@ -1741,6 +2006,7 @@ function changeParcelType(id, type) {
 // ── Stage 3: tracing mode ─────────────────────────────────────────────────────
 
 function startTracing() {
+  if (!confirmDestructive('Tracing new parcels')) return;
   STATE.origLG.clearLayers();
   STATE.boundaryLG.clearLayers();
   STATE.editLG.clearLayers();
@@ -1750,6 +2016,7 @@ function startTracing() {
   STATE.editableParcels  = {};
   STATE.selectedIds      = new Set();
   STATE.lastSelectedId   = null;
+  STATE.selectedOrigId   = null;
   cancelDraw();
 
   STATE.tracingMode = true;
@@ -1768,29 +2035,19 @@ function addTracedOriginal(verts) {
   const coords  = latlngsToCoords(verts);
   const geojson = turf.feature({ type: 'Polygon', coordinates: [coords] }, { name });
   STATE.originalFeatures.push({ id, name, area: turf.area(geojson), geojson });
-
-  const poly = L.polygon(verts, {
-    color: '#c0c0c0', weight: 1.5, dashArray: '6 5',
-    fillColor: '#d8d8d8', fillOpacity: 0.08, interactive: false
-  });
-  poly.bindTooltip(name, { permanent: true, direction: 'center', className: 'orig-label' });
-  STATE.origLG.addLayer(poly);
   computeProjectBoundary();
+  refreshOrigLayer();
   // Stay in draw mode so user can trace the next parcel
 }
 
 function doneTracing() {
-  if (STATE.originalFeatures.length === 0) {
-    alert('Please trace at least one parcel first.');
-    return;
-  }
   STATE.tracingMode = false;
   document.getElementById('map').classList.remove('drawing-cursor');
   document.getElementById('btn-trace').style.display        = '';
   document.getElementById('btn-done-tracing').style.display = 'none';
   document.getElementById('btn-upload-kml').disabled        = false;
   activateTool('select');
-  createEditableCopies();
+  if (STATE.originalFeatures.length > 0) createEditableCopies();
 }
 
 // ── Stage 4: computeStats ─────────────────────────────────────────────────────
@@ -1870,7 +2127,7 @@ function computeStats() {
 
   // ── Expensive checks skipped during vertex drag ───────────────────────────
   let coverageGap = null;
-  let hasOverlaps = false;
+  let overlapArea = 0;
 
   if (!dragState) {
     if (turfPolys.length > 0 && STATE.projectBoundaryGeojson) {
@@ -1882,13 +2139,12 @@ function computeStats() {
       } catch(e) { coverageGap = null; }
     }
 
-    outer:
     for (let i = 0; i < turfPolys.length; i++) {
       for (let j = i + 1; j < turfPolys.length; j++) {
         if (turfPolys[i].type === 'Road' && turfPolys[j].type === 'Road') continue;
         try {
           const inter = turf.intersect(turfPolys[i].tp, turfPolys[j].tp);
-          if (inter && turf.area(inter) > 0.1) { hasOverlaps = true; break outer; }
+          if (inter) overlapArea += turf.area(inter);
         } catch(e) {}
       }
     }
@@ -1913,7 +2169,7 @@ function computeStats() {
     roadArea,    roadPct:    projArea ? roadArea    / projArea * 100 : 0,
     publicArea,  publicPct:  projArea ? publicArea  / projArea * 100 : 0,
     privateArea, privatePct: projArea ? privateArea / projArea * 100 : 0,
-    coverageGap, hasOverlaps,
+    coverageGap, overlapArea,
     avgReduction, maxReduction, minReduction, reductionSpread,
     avgOverlap, minOverlap,
     smallParcelsCount,
@@ -1934,8 +2190,8 @@ const TABLE_COLS = [
   { key: null,              label: '',         type: 'none' },
   { key: 'name',           label: 'Name',     type: 'text' },
   { key: 'type',           label: 'Type',     type: 'text' },
-  { key: 'newArea',        label: 'New m²',   type: 'num'  },
-  { key: 'origArea',       label: 'Orig m²',  type: 'num'  },
+  { key: 'newArea',        label: 'New m² (% of proj)',  type: 'num'  },
+  { key: 'origArea',       label: 'Orig m² (% of proj)', type: 'num'  },
   { key: 'deltaPercent',   label: 'Δ%',       type: 'num'  },
   { key: 'overlapPercent', label: 'Ovlp%',    type: 'num'  },
   { key: 'spilloverArea',  label: 'Spill m²', type: 'num'  },
@@ -2008,8 +2264,8 @@ function renderParcelTable(parcelStats, params) {
       <td><span class="dot ${ok ? 'dot-ok' : 'dot-err'}"></span></td>
       <td title="Double-click to rename" ondblclick="event.stopPropagation();renameParcel('${ps.id}')" style="cursor:text">${escHtml(shortName)}</td>
       <td><select class="type-select" onchange="changeParcelType('${ps.id}',this.value)">${typeOpts}</select></td>
-      <td>${formatArea(ps.newArea)}</td>
-      <td>${ps.origArea !== null ? formatArea(ps.origArea) : '—'}</td>
+      <td>${formatArea(ps.newArea)}${STATE.projectArea > 0 ? ' (' + (ps.newArea / STATE.projectArea * 100).toFixed(1) + '%)' : ''}</td>
+      <td>${ps.origArea !== null ? formatArea(ps.origArea) + (STATE.projectArea > 0 ? ' (' + (ps.origArea / STATE.projectArea * 100).toFixed(1) + '%)' : '') : '—'}</td>
       <td class="${deltaClass}">${deltaStr}</td>
       <td class="${ovlpClass}">${ovlpStr}</td>
       <td class="${spillClass}">${spillStr}</td>
@@ -2108,10 +2364,10 @@ function renderSummary(s) {
     ? '<span class="sum-val">—</span>'
     : s.coverageGap <= 0.5
       ? '<span class="val-ok">✓ Full coverage</span>'
-      : `<span class="val-bad">⚠ Gap: ${formatArea(s.coverageGap)} m²</span>`;
+      : `<span class="val-bad" style="cursor:pointer;text-decoration:underline;" title="Click to highlight gaps" onclick="flashGaps()">⚠ Gap: ${formatArea(s.coverageGap)} m²</span>`;
 
-  const overlapHtml  = s.hasOverlaps
-    ? '<span class="val-bad">⚠ Overlaps detected</span>'
+  const overlapHtml  = s.overlapArea > 0.1
+    ? `<span class="val-bad" style="cursor:pointer;text-decoration:underline;" title="Click to highlight overlaps" onclick="flashOverlaps()">⚠ Overlaps: ${formatArea(s.overlapArea)} m²</span>`
     : '<span class="val-ok">✓ No overlaps</span>';
 
   const spreadBad   = s.reductionSpread !== null && Number(s.reductionSpread.toFixed(1)) > p.maxVar;
@@ -2140,6 +2396,79 @@ function renderSummary(s) {
     <div class="sum-row"><span class="sum-label">Min overlap w/ orig</span>  <span class="${cls(minOvlpBad)}">${pct(s.minOverlap)}</span></div>
     <div class="sum-row"><span class="sum-label">Violations</span>           <span class="${cls(violBad)}">${s.violationCount}</span></div>
   `;
+}
+
+function flashOverlaps() {
+  const turfPolys = [];
+  for (const p of Object.values(STATE.editableParcels)) {
+    let tp; try { tp = latlngsToTurf(p.latlngs); } catch (_) { continue; }
+    turfPolys.push({ tp, type: p.type });
+  }
+
+  const flashLayers = [];
+  for (let i = 0; i < turfPolys.length; i++) {
+    for (let j = i + 1; j < turfPolys.length; j++) {
+      if (turfPolys[i].type === 'Road' && turfPolys[j].type === 'Road') continue;
+      let inter;
+      try { inter = turf.intersect(turfPolys[i].tp, turfPolys[j].tp); } catch (_) { continue; }
+      if (!inter || turf.area(inter) <= 0.1) continue;
+      const polys = inter.geometry.type === 'MultiPolygon'
+        ? inter.geometry.coordinates
+        : [inter.geometry.coordinates];
+      for (const polyCoords of polys) {
+        flashLayers.push(L.polygon(coordsToLatLngs(polyCoords), {
+          color: '#e74c3c', fillColor: '#e74c3c', fillOpacity: 0.65,
+          weight: 2.5, interactive: false
+        }).addTo(map));
+      }
+    }
+  }
+
+  if (flashLayers.length === 0) return;
+
+  let bright = true;
+  const timer = setInterval(() => {
+    bright = !bright;
+    flashLayers.forEach(l => l.setStyle({ fillOpacity: bright ? 0.65 : 0.1 }));
+  }, 280);
+  setTimeout(() => {
+    clearInterval(timer);
+    flashLayers.forEach(l => map.removeLayer(l));
+  }, 1500);
+}
+
+function flashGaps() {
+  if (!STATE.projectBoundaryGeojson) return;
+  let union = null;
+  for (const p of Object.values(STATE.editableParcels)) {
+    try {
+      const f = turf.polygon([latlngsToCoords(p.latlngs)]);
+      union = union ? (turf.union(union, f) || union) : f;
+    } catch (_) {}
+  }
+  const gap = union ? turf.difference(STATE.projectBoundaryGeojson, union) : null;
+  if (!gap || turf.area(gap) < 0.5) return;
+
+  const polys = gap.geometry.type === 'MultiPolygon'
+    ? gap.geometry.coordinates
+    : [gap.geometry.coordinates];
+
+  const flashLayers = polys.map(coords =>
+    L.polygon(coordsToLatLngs(coords), {
+      color: '#e67e22', fillColor: '#e67e22', fillOpacity: 0.65,
+      weight: 2.5, interactive: false
+    }).addTo(map)
+  );
+
+  let bright = true;
+  const timer = setInterval(() => {
+    bright = !bright;
+    flashLayers.forEach(l => l.setStyle({ fillOpacity: bright ? 0.65 : 0.1 }));
+  }, 280);
+  setTimeout(() => {
+    clearInterval(timer);
+    flashLayers.forEach(l => map.removeLayer(l));
+  }, 1500);
 }
 
 // ── Stage 5: undo / history ───────────────────────────────────────────────────
@@ -2178,35 +2507,37 @@ function deserializeEditables(json) {
 }
 
 function pushHistory() {
-  STATE.history.push(serializeEditables());
+  STATE.history.push({ e: serializeEditables(), o: serializeOriginals() });
   if (STATE.history.length > MAX_HISTORY) STATE.history.shift();
   STATE.redoStack = [];
 }
 
-function undo() {
-  if (STATE.history.length === 0) return;
-  STATE.redoStack.push(serializeEditables());
-  STATE.editableParcels = deserializeEditables(STATE.history.pop());
+function _applySnapshot(snap) {
+  STATE.editableParcels  = deserializeEditables(snap.e);
+  STATE.originalFeatures = deserializeOriginals(snap.o);
   STATE.selectedIds    = new Set();
   STATE.lastSelectedId = null;
+  STATE.selectedOrigId = null;
+  _origVertexMarkers   = [];
   STATE.vertexLG.clearLayers();
   document.getElementById('vhandles').innerHTML = '';
+  computeProjectBoundary();
+  refreshOrigLayer();
   refreshEditableLayer();
   syncTableSelection();
   computeStats();
 }
 
+function undo() {
+  if (STATE.history.length === 0) return;
+  STATE.redoStack.push({ e: serializeEditables(), o: serializeOriginals() });
+  _applySnapshot(STATE.history.pop());
+}
+
 function redo() {
   if (STATE.redoStack.length === 0) return;
-  STATE.history.push(serializeEditables());
-  STATE.editableParcels = deserializeEditables(STATE.redoStack.pop());
-  STATE.selectedIds    = new Set();
-  STATE.lastSelectedId = null;
-  STATE.vertexLG.clearLayers();
-  document.getElementById('vhandles').innerHTML = '';
-  refreshEditableLayer();
-  syncTableSelection();
-  computeStats();
+  STATE.history.push({ e: serializeEditables(), o: serializeOriginals() });
+  _applySnapshot(STATE.redoStack.pop());
 }
 
 // ── Stage 5: export KML ───────────────────────────────────────────────────────
@@ -2364,7 +2695,7 @@ function exportCSV() {
       ['Private area (m²)',            m2(s.privateArea)],
       ['Private area (%)',             pct(s.privatePct)],
       ['Coverage',                     coverageVal],
-      ['Polygon overlaps',             s.hasOverlaps ? 'Yes' : 'No'],
+      ['Polygon overlaps (m²)',         s.overlapArea > 0.1 ? String(Math.round(s.overlapArea)) : '0'],
       ['Parcels below min size',       String(s.smallParcelsCount)],
       ['Avg reduction (%)',            pct(s.avgReduction)],
       ['Max reduction (%)',            pct(s.maxReduction)],
@@ -2401,12 +2732,12 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-// ── Shrink selected parcel ────────────────────────────────────────────────────
+// ── Resize selected parcel ────────────────────────────────────────────────────
 
 function shrinkSelected() {
   const pct = parseFloat(document.getElementById('shrink-pct').value);
-  if (isNaN(pct) || pct <= 0 || pct >= 100) {
-    alert('Please enter a percentage between 0 and 100 (exclusive).');
+  if (isNaN(pct) || pct === 0 || pct <= -100) {
+    alert('Please enter a non-zero percentage greater than -100.');
     return;
   }
   if (STATE.selectedIds.size === 0) {
@@ -2422,7 +2753,7 @@ function shrinkSelected() {
   for (const id of STATE.selectedIds) {
     const p = STATE.editableParcels[id];
     if (!p) continue;
-    if (p.type === 'Road') continue; // roads are resized by dragging centerline endpoints
+    if (p.type === 'Road') continue;
 
     let tp;
     try { tp = latlngsToTurf(p.latlngs); } catch(e) { continue; }
@@ -2430,13 +2761,119 @@ function shrinkSelected() {
     const orig        = p.originalId ? origById[p.originalId] : null;
     const currentArea = turf.area(tp);
     const refArea     = orig ? orig.area : currentArea;
-    const targetArea  = refArea * (1 - pct / 100);
+    // Positive pct → grow, negative pct → shrink, relative to reference area
+    const targetArea  = refArea * (1 + pct / 100);
     if (targetArea <= 0) continue;
 
     // Area scales as factor², so to hit targetArea from currentArea:
     const scaleFactor = Math.sqrt(targetArea / currentArea);
     const scaled      = turf.transformScale(tp, scaleFactor);
     p.latlngs         = coordsToLatLngs(scaled.geometry.coordinates);
+  }
+
+  refreshEditableLayer();
+  if (STATE.selectedIds.size === 1) renderVertexHandles(STATE.lastSelectedId);
+  computeStats();
+}
+
+function clipSpillover() {
+  if (!STATE.projectBoundaryGeojson) {
+    alert('No project boundary. Upload KML parcels first.'); return;
+  }
+  const parcels = Object.values(STATE.editableParcels);
+  if (!parcels.length) return;
+
+  let anySpillover = false;
+  for (const p of parcels) {
+    try {
+      const feat = turf.polygon([latlngsToCoords(p.latlngs)]);
+      const diff = turf.difference(feat, STATE.projectBoundaryGeojson);
+      if (diff && turf.area(diff) > 0.1) { anySpillover = true; break; }
+    } catch (_) {}
+  }
+  if (!anySpillover) { alert('No spillover found.'); return; }
+
+  pushHistory();
+
+  for (const p of parcels) {
+    try {
+      const feat    = turf.polygon([latlngsToCoords(p.latlngs)]);
+      const clipped = turf.intersect(feat, STATE.projectBoundaryGeojson);
+      if (!clipped) continue;
+      const geom = clipped.geometry;
+      let coords;
+      if (geom.type === 'Polygon') {
+        coords = geom.coordinates[0];
+      } else if (geom.type === 'MultiPolygon') {
+        coords = geom.coordinates.reduce((a, b) =>
+          turf.area(turf.polygon(a)) >= turf.area(turf.polygon(b)) ? a : b
+        )[0];
+      }
+      if (coords) p.latlngs = coordsToLatLngs(coords);
+    } catch (_) {}
+  }
+
+  refreshEditableLayer();
+  if (STATE.selectedIds.size === 1) renderVertexHandles(STATE.lastSelectedId);
+  computeStats();
+}
+
+function clipOverlaps() {
+  const parcels = Object.values(STATE.editableParcels).filter(p => p.type !== 'Road');
+  if (parcels.length < 2) return;
+
+  // Check whether any overlaps exist before touching history
+  let anyOverlap = false;
+  outer: for (let i = 0; i < parcels.length; i++) {
+    for (let j = i + 1; j < parcels.length; j++) {
+      try {
+        const inter = turf.intersect(
+          turf.polygon([latlngsToCoords(parcels[i].latlngs)]),
+          turf.polygon([latlngsToCoords(parcels[j].latlngs)])
+        );
+        if (inter && turf.area(inter) > 0.1) { anyOverlap = true; break outer; }
+      } catch (_) {}
+    }
+  }
+  if (!anyOverlap) { alert('No overlaps found.'); return; }
+
+  pushHistory();
+
+  // Sort ascending by area so the smaller parcel always wins its full shape.
+  // Process smallest first: each parcel claims its territory; all subsequent
+  // (larger) parcels are clipped by the cumulative claimed area.
+  const sorted = parcels.map(p => {
+    let area = 0;
+    try { area = turf.area(turf.polygon([latlngsToCoords(p.latlngs)])); } catch (_) {}
+    return { p, area };
+  }).sort((a, b) => a.area - b.area);
+
+  let claimed = null;
+  for (const { p } of sorted) {
+    let feat;
+    try { feat = turf.polygon([latlngsToCoords(p.latlngs)]); } catch (_) { continue; }
+
+    if (claimed) {
+      let clipped;
+      try { clipped = turf.difference(feat, claimed); } catch (_) { clipped = null; }
+      if (clipped) {
+        const geom = clipped.geometry;
+        let coords;
+        if (geom.type === 'Polygon') {
+          coords = geom.coordinates[0];
+        } else if (geom.type === 'MultiPolygon') {
+          coords = geom.coordinates.reduce((a, b) =>
+            turf.area(turf.polygon(a)) >= turf.area(turf.polygon(b)) ? a : b
+          )[0];
+        }
+        if (coords) {
+          p.latlngs = coordsToLatLngs(coords);
+          feat = turf.polygon([coords]);
+        }
+      }
+    }
+
+    try { claimed = claimed ? (turf.union(claimed, feat) || claimed) : feat; } catch (_) {}
   }
 
   refreshEditableLayer();
@@ -2728,6 +3165,145 @@ function ptSegDist(p, a, b) {
   const t = Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / len2));
   return Math.hypot(p.x - (a.x + t * abx), p.y - (a.y + t * aby));
 }
+
+// ── Edit originals mode ──────────────────────────────────────────────────────
+
+let _origVertexMarkers = [];
+
+function serializeOriginals() {
+  return JSON.stringify(STATE.originalFeatures.map(o => ({
+    id: o.id, name: o.name, area: o.area,
+    coords: o.geojson.geometry.coordinates,
+  })));
+}
+
+function deserializeOriginals(json) {
+  return JSON.parse(json).map(o => ({
+    id: o.id, name: o.name, area: o.area,
+    geojson: turf.feature({ type: 'Polygon', coordinates: o.coords }, { name: o.name }),
+  }));
+}
+
+function refreshOrigLayer() {
+  STATE.origLG.clearLayers();
+  const editMode = STATE.activeTool === 'edit-orig';
+  STATE.originalFeatures.forEach(orig => {
+    const lls = coordsToLatLngs(orig.geojson.geometry.coordinates);
+    const sel  = STATE.selectedOrigId === orig.id;
+    const poly = L.polygon(lls, editMode ? {
+      color: sel ? '#e67e22' : '#777', weight: sel ? 2.5 : 1.5,
+      fillColor: sel ? '#fde8c8' : '#d8d8d8', fillOpacity: sel ? 0.35 : 0.12,
+      interactive: true,
+    } : {
+      color: '#c0c0c0', weight: 1.5, dashArray: '6 5',
+      fillColor: '#d8d8d8', fillOpacity: 0.08, interactive: false,
+    });
+    poly.bindTooltip(orig.name, { permanent: true, direction: 'center', className: 'orig-label' });
+    if (editMode) poly.on('click', e => { L.DomEvent.stopPropagation(e); selectOriginal(orig.id); });
+    STATE.origLG.addLayer(poly);
+  });
+}
+
+function exitEditOrigMode() {
+  STATE.selectedOrigId = null;
+  _origVertexMarkers = [];
+  STATE.vertexLG.clearLayers();
+  document.getElementById('vhandles').innerHTML = '';
+  refreshOrigLayer();
+}
+
+function selectOriginal(id) {
+  STATE.selectedOrigId = id;
+  refreshOrigLayer();
+  renderOrigVertexHandles(id);
+}
+
+function renderOrigVertexHandles(id) {
+  const container = document.getElementById('vhandles');
+  container.innerHTML = '';
+  STATE.vertexLG.clearLayers();
+  _origVertexMarkers = [];
+  const orig = STATE.originalFeatures.find(o => o.id === id);
+  if (!orig) return;
+  const lls = coordsToLatLngs(orig.geojson.geometry.coordinates);
+
+  function syncGeom() {
+    orig.geojson.geometry.coordinates = [latlngsToCoords(lls)];
+    orig.area = turf.area(orig.geojson);
+  }
+
+  lls.forEach((ll, idx) => {
+    const pt  = map.latLngToContainerPoint(ll);
+    const div = document.createElement('div');
+    div.className = 'vhandle-v';
+    div.style.left = pt.x + 'px'; div.style.top = pt.y + 'px'; div._ll = ll;
+    div.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); map.dragging.disable(); startOrigVertexDrag(id, idx, div); });
+    div.addEventListener('click', e => e.stopPropagation());
+    div.addEventListener('contextmenu', e => {
+      e.preventDefault(); e.stopPropagation();
+      if (lls.length <= 3) return;
+      pushHistory(); lls.splice(idx, 1); syncGeom();
+      computeProjectBoundary(); refreshOrigLayer(); renderOrigVertexHandles(id); computeStats();
+    });
+    container.appendChild(div);
+    _origVertexMarkers.push(div);
+  });
+
+  const n = lls.length;
+  for (let i = 0; i < n; i++) {
+    const a = lls[i], b = lls[(i + 1) % n];
+    const mid = L.latLng((a.lat + b.lat) / 2, (a.lng + b.lng) / 2);
+    const pt  = map.latLngToContainerPoint(mid);
+    const div = document.createElement('div');
+    div.className = 'vhandle-m';
+    div.style.left = pt.x + 'px'; div.style.top = pt.y + 'px'; div._ll = mid;
+    const insertAt = i + 1;
+    div.addEventListener('mousedown', e => {
+      e.stopPropagation(); e.preventDefault(); map.dragging.disable();
+      pushHistory(); lls.splice(insertAt, 0, L.latLng(mid.lat, mid.lng)); syncGeom();
+      computeProjectBoundary(); refreshOrigLayer(); renderOrigVertexHandles(id); computeStats();
+      startOrigVertexDrag(id, insertAt, _origVertexMarkers[insertAt]);
+    });
+    div.addEventListener('click', e => e.stopPropagation());
+    container.appendChild(div);
+  }
+}
+
+function startOrigVertexDrag(id, idx, marker) {
+  const orig = STATE.originalFeatures.find(o => o.id === id);
+  if (!orig) return;
+  const lls = coordsToLatLngs(orig.geojson.geometry.coordinates);
+  const _container = map.getContainer();
+  let _moved = false;
+
+  function onMove(e) {
+    if (!_moved) { pushHistory(); _moved = true; }
+    const rect   = _container.getBoundingClientRect();
+    const rawLL  = map.containerPointToLatLng(L.point(e.clientX - rect.left, e.clientY - rect.top));
+    const snapLL = findSnapVertex(rawLL, null);
+    const ll = snapLL || rawLL;
+    updateSnapMarker(snapLL);
+    lls[idx] = ll;
+    orig.geojson.geometry.coordinates = [latlngsToCoords(lls)];
+    orig.area = turf.area(orig.geojson);
+    if (marker && marker.parentNode) {
+      const pt = map.latLngToContainerPoint(ll);
+      marker.style.left = pt.x + 'px'; marker.style.top = pt.y + 'px'; marker._ll = ll;
+    }
+    computeProjectBoundary(); refreshOrigLayer(); computeStats();
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup',   onUp);
+    map.dragging.enable(); updateSnapMarker(null);
+    if (_moved) { _justDragged = true; setTimeout(() => { _justDragged = false; }, 50); renderOrigVertexHandles(id); }
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup',   onUp);
+}
+
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 initMap();
