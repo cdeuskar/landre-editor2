@@ -320,6 +320,30 @@
       margin: 12px 0; font-size: 13px;
     }
     #guide-body .tip strong { color: #1a5276; }
+
+    /* ── Gradient legend ── */
+    #gradient-legend {
+      display: none;
+      position: absolute; bottom: 30px; left: 10px; z-index: 1000;
+      background: rgba(255,255,255,0.93); border: 1px solid #bbb; border-radius: 6px;
+      padding: 6px 10px; min-width: 180px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    #gradient-legend.visible { display: block; }
+    #gradient-legend .legend-title {
+      font-weight: 700; font-size: 10px; color: #2c3e50;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      margin-bottom: 5px; text-align: center;
+    }
+    #gradient-legend .legend-bar {
+      height: 12px; border-radius: 3px;
+      background: linear-gradient(to right, #c0392b, #27ae60);
+      margin-bottom: 4px;
+    }
+    #gradient-legend .legend-labels {
+      display: flex; justify-content: space-between;
+      font-size: 10px; color: #444;
+    }
   </style>
 
 <!-- Google tag (gtag.js) -->
@@ -369,7 +393,7 @@
   <hr class="tool-sep">
   <button class="tool-btn" id="btn-tog-orig"  onclick="toggleOriginals()">👁 Hide originals</button>
   <button class="tool-btn" id="btn-tog-edit"  onclick="toggleEditables()">👁 Hide new parcels</button>
-  <button class="tool-btn active" id="btn-delta-gradient" onclick="toggleDeltaGradient()">Δ% color gradient</button>
+  <button class="tool-btn active" id="btn-delta-gradient" onclick="toggleDeltaGradient()">Color gradient: Size change ▾</button>
   <hr class="tool-sep">
   <button class="tool-btn" onclick="exportKML()">⬇ Export KML</button>
   <hr class="tool-sep">
@@ -380,6 +404,16 @@
                   onchange="switchBasemap('satellite')"> Satellite</label>
     <label><input type="radio" name="bm" value="osm"
                   onchange="switchBasemap('osm')"> OpenStreetMap</label>
+  </div>
+</div>
+
+<!-- ── Gradient legend ──────────────────────────────────────────────────── -->
+<div id="gradient-legend">
+  <div class="legend-title" id="legend-title">Size change gradient</div>
+  <div class="legend-bar"></div>
+  <div class="legend-labels">
+    <span id="legend-min">—</span>
+    <span id="legend-max">—</span>
   </div>
 </div>
 
@@ -808,10 +842,34 @@ function lerpHex(r1, g1, b1, r2, g2, b2, t) {
 }
 
 function toggleDeltaGradient() {
-  _deltaGradientMode = !_deltaGradientMode;
+  if (_gradientMode === 'delta')        _gradientMode = 'overlap';
+  else if (_gradientMode === 'overlap') _gradientMode = 'off';
+  else                                  _gradientMode = 'delta';
   const btn = document.getElementById('btn-delta-gradient');
-  if (btn) btn.classList.toggle('active', _deltaGradientMode);
+  if (btn) {
+    btn.classList.toggle('active', _gradientMode !== 'off');
+    btn.textContent = _gradientMode === 'delta'   ? 'Color gradient: Size change ▾'
+                    : _gradientMode === 'overlap' ? 'Color gradient: Ovlp% ▾'
+                    :                               'Color gradient: off ▾';
+  }
   refreshEditableLayer();
+}
+
+function updateGradientLegend(minVal, maxVal, hasData) {
+  const el = document.getElementById('gradient-legend');
+  if (!el) return;
+  if (_gradientMode === 'off' || !hasData) {
+    el.classList.remove('visible');
+    return;
+  }
+  el.classList.add('visible');
+  document.getElementById('legend-title').textContent =
+    _gradientMode === 'overlap' ? 'Ovlp% gradient' : 'Size change gradient';
+  const fmt = _gradientMode === 'overlap'
+    ? v => v.toFixed(1) + '%'
+    : v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  document.getElementById('legend-min').textContent = fmt(minVal);
+  document.getElementById('legend-max').textContent = fmt(maxVal);
 }
 
 function formatArea(m2) {
@@ -1017,19 +1075,22 @@ function refreshEditableLayer() {
   STATE.editLG.clearLayers();
   // Vertex handles remain managed by Stage 3 (selectPolygon / deselectAll)
 
-  // Build delta gradient lookup for Private parcels if mode is active
+  // Build gradient lookup for Private parcels if mode is active
   let _gradientMap = null, _gradMin = 0, _gradRange = 0;
-  if (_deltaGradientMode && STATE.lastParcelStats?.length) {
+  if (_gradientMode !== 'off' && STATE.lastParcelStats?.length) {
     _gradientMap = {};
-    const deltas = [];
+    const vals = [];
     STATE.lastParcelStats.forEach(ps => {
-      if (ps.type === 'Private parcel' && ps.deltaPercent !== null) {
-        _gradientMap[ps.id] = ps.deltaPercent;
-        deltas.push(ps.deltaPercent);
+      if (ps.type === 'Private parcel') {
+        const v = _gradientMode === 'overlap' ? ps.overlapPercent : ps.deltaPercent;
+        if (v !== null) { _gradientMap[ps.id] = v; vals.push(v); }
       }
     });
-    _gradMin   = deltas.length ? Math.min(...deltas) : 0;
-    _gradRange = deltas.length ? Math.max(...deltas) - _gradMin : 0;
+    _gradMin   = vals.length ? Math.min(...vals) : 0;
+    _gradRange = vals.length ? Math.max(...vals) - _gradMin : 0;
+    updateGradientLegend(_gradMin, _gradMin + _gradRange, vals.length > 0);
+  } else {
+    updateGradientLegend(0, 0, false);
   }
 
   const _editOrigMode = STATE.activeTool === 'edit-orig' || STATE.activeTool === 'ruler';
@@ -1037,7 +1098,7 @@ function refreshEditableLayer() {
     let style = getTypeStyle(parcel.type);
     if (_gradientMap && parcel.type === 'Private parcel' && _gradientMap[parcel.id] !== undefined) {
       const t = _gradRange > 0 ? (_gradientMap[parcel.id] - _gradMin) / _gradRange : 0.5;
-      // t=0 → most shrinkage (red), t=1 → least shrinkage (green)
+      // t=0 → worst value (red), t=1 → best value (green)
       style = {
         fillColor:   lerpHex(192, 57, 43,  39, 174, 96, t),
         color:       lerpHex(120, 30, 20,  20, 100, 50, t),
@@ -2366,7 +2427,7 @@ const TABLE_COLS = [
 
 let _tableSort         = { col: null, dir: 0 };
 let _prevViolCount     = null;  // violation count from previous renderSummary call
-let _deltaGradientMode = true;
+let _gradientMode = 'delta';  // 'delta' | 'overlap' | 'off'
 
 function clickTableHeader(col) {
   const colDef = TABLE_COLS.find(c => c.key === col);
