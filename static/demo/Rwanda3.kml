@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document>
+	<name>Rwanda3.kml</name>
+	<Style id="style-original">
+		<LineStyle>
+			<color>ffc0c0c0</color>
+			<width>1.5</width>
+		</LineStyle>
+		<PolyStyle>
+			<color>14d8d8d8</color>
+		</PolyStyle>
+	</Style>
+	<Folder>
+		<name>Originals</name>
+		<open>1</open>
+		<Placemark>
+			<name>Parcel A</name>
+			<styleUrl>#style-original</styleUrl>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							30.13388872146607,-2.13208924021985,0 30.13435810804367,-2.132544900019564,0 30.13421058654786,-2.132762008464906,0 30.13377070426941,-2.132292946970513,0 30.13388872146607,-2.13208924021985,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<Placemark>
+			<name>Parcel B</name>
+			<styleUrl>#style-original</styleUrl>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							30.13377070426941,-2.132292946970513,0 30.13358563184739,-2.132625310558448,0 30.13406038284302,-2.132976436529012,0 30.13421058654786,-2.132762008464906,0 30.13377070426941,-2.132292946970513,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<Placemark>
+			<name>Parcel C</name>
+			<styleUrl>#style-original</styleUrl>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							30.13358563184739,-2.132625310558448,0 30.13345688581467,-2.132853140395806,0 30.13384922270891,-2.133261059790486,0 30.13406038284302,-2.132976436529012,0 30.13358563184739,-2.132625310558448,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<Placemark>
+			<name>Parcel D</name>
+			<styleUrl>#style-original</styleUrl>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							30.13345688581467,-2.132853140395806,0 30.13327717781067,-2.133190864563208,0 30.1337143778801,-2.133442817465214,0 30.13384922270891,-2.133261059790486,0 30.13345688581467,-2.132853140395806,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<Placemark>
+			<name>Parcel E</name>
+			<styleUrl>#style-original</styleUrl>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							30.13327717781067,-2.133190864563208,0 30.13312697410583,-2.133491063760892,0 30.13355700999601,-2.133707234876441,0 30.1337143778801,-2.133442817465214,0 30.13327717781067,-2.133190864563208,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<Placemark>
+			<name>Parcel F</name>
+			<styleUrl>#style-original</styleUrl>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							30.13312697410583,-2.133491063760892,0 30.13297408819199,-2.13371085242202,0 30.13341128826142,-2.133952083843211,0 30.13355700999601,-2.133707234876441,0 30.13312697410583,-2.133491063760892,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<Placemark>
+			<name>Parcel G</name>
+			<styleUrl>#style-original</styleUrl>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							30.13341128826142,-2.133952083843211,0 30.13363122940064,-2.134059297796036,0 30.1339128613472,-2.133606318794429,0 30.1337143778801,-2.133442817465214,0 30.13341128826142,-2.133952083843211,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<Placemark>
+			<name>Parcel H</name>
+			<styleUrl>#style-original</styleUrl>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							30.1337143778801,-2.133442817465214,0 30.13406038284302,-2.132976436529012,0 30.13425350189209,-2.13312117545537,0 30.1339128613472,-2.133606318794429,0 30.1337143778801,-2.133442817465214,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<Placemark>
+			<name>Parcel I</name>
+			<styleUrl>#style-original</styleUrl>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							30.13406038284302,-2.132976436529012,0 30.13421058654786,-2.132762008464906,0 30.13435810804367,-2.132544900019564,0 30.13452440500259,-2.132743246007878,0 30.13425350189209,-2.13312117545537,0 30.13406038284302,-2.132976436529012,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<Placemark>
+			<name>Parcel J</name>
+			<styleUrl>#style-original</styleUrl>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							30.13452440500259,-2.132743246007878,0 30.13520300388337,-2.133421374666642,0 30.13489723205567,-2.13376177905853,0 30.13425350189209,-2.13312117545537,0 30.13452440500259,-2.132743246007878,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<Placemark>
+			<name>Parcel K</name>
+			<styleUrl>#style-original</styleUrl>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							30.13425350189209,-2.13312117545537,0 30.13489723205567,-2.13376177905853,0 30.13463705778122,-2.134120945815528,0 30.13401183793269,-2.133465355447901,0 30.13425350189209,-2.13312117545537,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<Placemark>
+			<name>Parcel L</name>
+			<styleUrl>#style-original</styleUrl>
+			<Polygon>
+				<outerBoundaryIs>
+					<LinearRing>
+						<coordinates>
+							30.13401183793269,-2.133465355447901,0 30.1339128613472,-2.133606318794429,0 30.13363122940064,-2.134059297796036,0 30.13433396816254,-2.134482792836605,0 30.13463705778122,-2.134120945815528,0 30.13401183793269,-2.133465355447901,0 
+						</coordinates>
+					</LinearRing>
+				</outerBoundaryIs>
+			</Polygon>
+		</Placemark>
+		<atom:link rel="app" href="https://www.google.com/earth/about/versions/#earth-pro" title="Google Earth Pro 7.3.7.1155"></atom:link>
+	</Folder>
+</Document>
+</kml>

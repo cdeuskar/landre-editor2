@@ -3,13 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LandRe Editor</title>
+  <title>Land Readjustment App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    button, input, select, textarea { font-family: inherit; }
+    body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
            font-size: 13px; display: flex; height: 100vh; overflow: hidden; }
 
     /* ── Map ── */
@@ -19,14 +23,14 @@
     #toolbar {
       position: absolute; top: 10px; left: 10px; z-index: 1000;
       display: flex; flex-direction: column; gap: 3px;
-      max-height: calc(100vh - 20px); overflow-y: auto;
+      max-height: calc(100vh - 90px); overflow-y: auto;
     }
     .tool-sep { border: none; border-top: 1px solid #ccc; margin: 2px 0; }
     .tool-group-label {
-      font-size: 9px; font-weight: 700; letter-spacing: 0.07em;
-      text-transform: uppercase; color: #333;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.07em;
+      text-transform: uppercase; color: #222;
       padding: 6px 4px 2px; user-select: none;
-      text-shadow: 0 0 4px white, 0 0 4px white;
+      text-shadow: 0 0 6px white, 0 0 6px white, 0 0 6px white;
     }
     .tool-btn {
       background: white; border: 1px solid #bbb; border-radius: 4px;
@@ -35,9 +39,12 @@
     }
     .tool-btn:hover { background: #f0f0f0; }
     .tool-btn.active { background: #2980b9; color: white; border-color: #1a6fa0; }
+    .tool-btn.guide-btn { background: #27ae60; color: white; border-color: #1e8449; }
+    .tool-btn.guide-btn:hover { background: #219a52; }
 
     /* ── Basemap switcher (inside toolbar) ── */
     #basemap-ctrl {
+      position: absolute; bottom: 10px; left: 10px; z-index: 1000;
       background: white; border: 1px solid #bbb; border-radius: 4px;
       padding: 5px 10px; font-size: 12px;
     }
@@ -135,7 +142,7 @@
     }
     .sum-row.row-flash-ok { animation: flashRowGreen 0.7s ease-out; border-radius: 3px; }
     .type-select { font-size: 11px; border: 1px solid #ccc; border-radius: 2px;
-                   padding: 1px 2px; max-width: 90px; }
+                   padding: 1px 2px; min-width: 120px; }
 
     /* ── Summary ── */
     #summary-content { font-size: 12px; }
@@ -213,13 +220,15 @@
     /* ── Polygon labels ── */
     .orig-label {
       background: none; border: none; box-shadow: none;
-      color: #aaa; font-size: 9px; font-weight: 400;
+      color: #aaa; font-size: 11px; font-weight: 400;
+      font-family: 'Inter', sans-serif;
       text-shadow: 0 0 2px white, 0 0 2px white;
       pointer-events: none; white-space: nowrap;
     }
     .edit-label {
       background: none; border: none; box-shadow: none;
       color: #1a3d1a; font-size: 11px; font-weight: 700;
+      font-family: 'Inter', sans-serif;
       text-shadow: 0 0 4px white, 0 0 4px white;
       pointer-events: none; white-space: nowrap;
     }
@@ -324,7 +333,7 @@
     /* ── Gradient legend ── */
     #gradient-legend {
       display: none;
-      position: absolute; bottom: 30px; left: 10px; z-index: 1000;
+      position: absolute; bottom: 75px; left: 10px; z-index: 1000;
       background: rgba(255,255,255,0.93); border: 1px solid #bbb; border-radius: 6px;
       padding: 6px 10px; min-width: 180px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.18);
@@ -364,8 +373,11 @@
 
 <!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
 <div id="toolbar">
+  <button class="tool-btn guide-btn" onclick="openGuide()">? User Guide</button>
+  <hr class="tool-sep">
   <div class="tool-group-label">Input original parcels</div>
-  <button class="tool-btn" id="btn-upload-kml"  onclick="triggerKMLUpload()">📂 Upload KML</button>
+  <button class="tool-btn" onclick="loadDemoKML()">▶ Sample parcels</button>
+  <button class="tool-btn" id="btn-upload-kml"  onclick="triggerKMLUpload()">📂 Upload KML file</button>
   <button class="tool-btn" id="btn-trace"        onclick="startTracing()">✏️ Trace parcels</button>
   <button class="tool-btn" id="btn-done-tracing" onclick="doneTracing()"
           style="display:none">✔ Done tracing</button>
@@ -387,8 +399,8 @@
     <input type="number" id="shrink-pct" value="-10" min="-99" max="999" step="1">
   </div>
   <button class="tool-btn" onclick="shrinkSelected()">↕ Resize selected parcels</button>
-  <button class="tool-btn" onclick="clipOverlaps()">✂ Clip overlaps</button>
-  <button class="tool-btn" onclick="clipSpillover()">✂ Clip spillover</button>
+  <button class="tool-btn" onclick="clipOverlaps()"><svg width="15" height="12" viewBox="0 0 15 12" style="vertical-align:middle;margin-right:4px" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.5" y="0.5" width="8" height="7"/><rect x="6" y="3.5" width="8" height="7"/><rect x="6" y="3.5" width="2.5" height="4" fill="#ccc" stroke="#ccc" stroke-width="1"/></svg>Clip overlaps</button>
+  <button class="tool-btn" onclick="clipSpillover()"><svg width="16" height="12" viewBox="0 0 16 12" style="vertical-align:middle;margin-right:4px" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.5" y="0.5" width="11" height="11"/><path d="M2,2 L2,10 L9,10 L9,8 L11.5,7 L11.5,5 L9,4 L9,2 Z"/><path d="M11.5,7 L14,6 L11.5,5" stroke="#ccc" stroke-width="1.2"/></svg>Clip spillover</button>
 
   <hr class="tool-sep">
   <button class="tool-btn" id="btn-tog-orig"  onclick="toggleOriginals()">👁 Hide originals</button>
@@ -396,15 +408,14 @@
   <button class="tool-btn active" id="btn-delta-gradient" onclick="toggleDeltaGradient()">Color gradient: Size change ▾</button>
   <hr class="tool-sep">
   <button class="tool-btn" onclick="exportKML()">⬇ Export KML</button>
-  <hr class="tool-sep">
-  <button class="tool-btn" onclick="openGuide()">? User Guide</button>
-  <hr class="tool-sep">
-  <div id="basemap-ctrl">
-    <label><input type="radio" name="bm" value="satellite" checked
-                  onchange="switchBasemap('satellite')"> Satellite</label>
-    <label><input type="radio" name="bm" value="osm"
-                  onchange="switchBasemap('osm')"> OpenStreetMap</label>
-  </div>
+</div>
+
+<!-- ── Basemap switcher ─────────────────────────────────────────────────── -->
+<div id="basemap-ctrl">
+  <label><input type="radio" name="bm" value="satellite" checked
+                onchange="switchBasemap('satellite')"> Satellite</label>
+  <label><input type="radio" name="bm" value="osm"
+                onchange="switchBasemap('osm')"> OpenStreetMap</label>
 </div>
 
 <!-- ── Gradient legend ──────────────────────────────────────────────────── -->
@@ -427,48 +438,70 @@
     <div id="guide-body">
 
       <h3>What is LandRe?</h3>
-      <p>LandRe is a planning tool designed to help you quickly create and adjust land readjustment layouts. It lets you experiment with different configurations and explore options before committing to a design — making it easier to facilitate discussions with stakeholders and test ideas in real time.</p>
+      <p>LandRe is a planning tool for designing land readjustment layouts. Land readjustment is a planning technique where a group of landowners pool their parcels, the land is collectively replanned — typically to add roads, public space, and serviced plots — and the reorganised parcels are redistributed back to the original owners, each receiving a smaller but more valuable and better-connected plot.</p>
+      <p>LandRe lets you experiment with different configurations and explore options before committing to a design, making it easier to facilitate discussions with landowners and test ideas in real time.</p>
       <p><strong>Important:</strong> The outputs produced by this app are intended for planning exploration and discussion only. They are <em>not</em> official site plans or survey-grade documents.</p>
 
-      <h3>Getting started</h3>
-      <p>Begin by loading the original parcels for your project area. You have two options:</p>
-      <ul>
-        <li><strong>Upload KML</strong> — import a KML file containing the original parcel boundaries.</li>
-        <li><strong>Trace parcels</strong> — draw parcels directly on the satellite map by clicking to place vertices. Click the first vertex again (or press <em>Done tracing</em>) to close each polygon.</li>
-      </ul>
-      <p>Once loaded, original parcels appear on the map as a reference layer. Use <strong>Edit originals</strong> if you need to adjust any of the source boundaries.</p>
+      <div style="display:flex; align-items:center; gap:12px; margin:12px 0 18px;">
+        <img src="/static/User-Guide-before.png" alt="Before land readjustment" style="height:220px; width:auto; border-radius:4px; border:1px solid #ddd;">
+        <div style="font-size:28px; color:#555; flex-shrink:0;">→</div>
+        <img src="/static/User-Guide-after.png" alt="After land readjustment" style="height:220px; width:auto; border-radius:4px; border:1px solid #ddd;">
+      </div>
 
-      <h3>Readjusting parcels</h3>
-      <p>Use the tools in the left toolbar to build your new layout:</p>
+      <h3>Step 1 — Load the original parcels</h3>
+      <p>The starting point for any land readjustment project is an accurate record of who owns what. Begin by loading the existing parcel boundaries into LandRe so the app can track how each owner's land changes through the redesign.</p>
       <ul>
-        <li><strong>Select / Reshape</strong> — click a parcel to select it, then drag its vertices or edges to reshape it. Hold <em>Shift</em> while dragging an edge to keep it perpendicular. Shared vertices between adjacent parcels are highlighted in purple; <strong>double-click</strong> a shared vertex or edge to drag it together with all other shared vertices and edges simultaneously, keeping boundaries aligned.</li>
-        <li><strong>Draw polygon</strong> — draw a new parcel from scratch. Vertices snap to existing corners and road intersections automatically.</li>
-        <li><strong>Draw road</strong> — trace a road centreline; the app generates the road polygon from a configurable width.</li>
-        <li><strong>Delete polygon</strong> — click a parcel to remove it.</li>
-        <li><strong>Resize selected parcels</strong> — type a percentage and click the button to shrink or grow selected parcels uniformly.</li>
-        <li><strong>Clip overlaps</strong> — automatically resolves overlapping parcels (smaller parcels take priority) and trims any parcel area that overlaps a road.</li>
-        <li><strong>Clip spillover</strong> — trims any parcel area that falls outside the project boundary.</li>
+        <li><strong>Upload KML</strong> — import a KML file containing the original parcel boundaries. This is the recommended approach if you already have GIS data for the area.</li>
+        <li><strong>Trace parcels</strong> — draw parcels directly on the satellite map by clicking to place vertices. Click the first vertex again (or press <em>Done tracing</em>) to close each polygon. Use this when no digital boundary data is available.</li>
       </ul>
-      <p>Use <strong>Undo / Redo</strong> (or Ctrl+Z / Ctrl+Y) at any time to step back through your changes.</p>
+      <p>Once loaded, the original parcels appear on the map as a fixed reference layer — they do not move when you edit. Use <strong>Edit originals</strong> if you need to correct any source boundaries before proceeding.</p>
 
-      <h3>Understanding the statistics panel</h3>
-      <p>The right panel shows a table of all parcels with key metrics updated in real time as you edit:</p>
+      <h3>Step 2 — Set the project parameters</h3>
+      <p>Land readjustment requires every participating landowner to contribute a portion of their land for roads and public space. Before you start redesigning, use the <strong>Parameters</strong> panel on the right to define the fairness thresholds for your project:</p>
       <ul>
-        <li><strong>Δ%</strong> — how much each parcel has grown or shrunk relative to its original area. A negative value means the parcel is smaller than before.</li>
-        <li><strong>Overlap w/ orig</strong> — what percentage of the new parcel footprint coincides with its original location.</li>
-        <li><strong>Spillover</strong> — area that falls outside the project boundary.</li>
-        <li><strong>Violations</strong> — the total count of parcels that exceed the configured thresholds (maximum reduction, minimum overlap, minimum size). When this reaches zero, the row turns green.</li>
+        <li><strong>Max reduction (%)</strong> — the maximum percentage by which any individual parcel may be reduced. This protects owners from carrying a disproportionate share of the land contribution. A typical range is 20–40%.</li>
+        <li><strong>Min overlap w/ orig (%)</strong> — the minimum share of a new parcel that must sit within its original boundary. Higher values keep owners close to their original land, which is often important for social acceptance.</li>
+        <li><strong>Min size (m²)</strong> — the smallest permissible plot in the new layout. This ensures all redistributed parcels remain developable.</li>
       </ul>
-      <p>You can sort the table by any column and adjust the threshold parameters at the top of the panel.</p>
+      <p>The statistics table flags any parcel that violates these thresholds in real time as you design, so keep this panel visible while you work.</p>
+
+      <h3>Step 3 — Design the new road network and public space</h3>
+      <p>Roads and public open space are the core public benefit that justifies asking landowners to contribute land. Lay out the road network first, as it defines the structure that all new parcels will be organised around.</p>
+      <ul>
+        <li><strong>Draw road</strong> — trace a road centreline on the map. A dialog will ask for the road name and width (in metres); the app then generates the road polygon automatically. Place roads to improve connectivity, open up previously inaccessible land, and create a logical block structure.</li>
+        <li><strong>Draw polygon</strong> — use this to draw public open space, community facilities, or any other non-private parcel. Vertices snap to existing corners and road intersections automatically, making it easy to fit new elements cleanly into the layout.</li>
+        <li><strong>Clip overlaps</strong> — once roads and public space are drawn, run this to automatically trim any existing parcel that overlaps a road polygon, keeping the layers clean.</li>
+      </ul>
+
+      <h3>Step 4 — Readjust the private parcels</h3>
+      <p>With the road network in place, reshape the private parcels so each owner receives a well-proportioned plot that is accessible from a road. The goal is a layout where every parcel has good street frontage, no awkward shapes, and where the reduction in area is shared as equitably as possible across all owners.</p>
+      <ul>
+        <li><strong>Select / Reshape</strong> — click a parcel to select it, then drag its vertices or edges to reshape it. Hold <em>Shift</em> while dragging an edge to keep it perpendicular, which helps produce regular rectangular plots. Shared vertices between adjacent parcels are highlighted in purple; <strong>double-click</strong> a shared vertex or edge to move it together with all neighbouring boundaries simultaneously, keeping the layout gap-free.</li>
+        <li><strong>Resize selected parcels</strong> — select one or more parcels and type a percentage to shrink or grow them uniformly. Use a negative value (e.g. −15) to apply the land contribution reduction across a group of parcels in one step.</li>
+        <li><strong>Clip spillover</strong> — trims any parcel area that falls outside the project boundary, ensuring no new parcel extends beyond the pooled land area.</li>
+        <li><strong>Delete polygon</strong> — click a parcel to remove it entirely if it is no longer needed in the new layout.</li>
+        <li><strong>Undo / Redo</strong> (Ctrl+Z / Ctrl+Y) — step back through your changes at any point. Do not hesitate to experiment; every action is reversible.</li>
+      </ul>
+
+      <h3>Step 5 — Check equity and resolve violations</h3>
+      <p>A key principle of land readjustment is fairness: every owner should contribute roughly the same proportion of their land, and no one should be left with an unworkably small or poorly located plot. Use the statistics panel to verify this as you design.</p>
+      <ul>
+        <li><strong>Δ%</strong> — how much each parcel has grown or shrunk relative to its original area. Aim for values that are similar across all private parcels. Large negative outliers indicate an owner who is bearing too much of the contribution burden.</li>
+        <li><strong>Overlap w/ orig</strong> — the share of the new parcel footprint that coincides with the owner's original land. Very low values may indicate a parcel has been moved far from its original location, which can be contentious with landowners.</li>
+        <li><strong>Spillover</strong> — area falling outside the project boundary. This should be zero for all parcels before you finalise the design.</li>
+        <li><strong>Violations</strong> — the count of parcels exceeding your configured thresholds. Work through the layout until this column reads zero for all parcels (rows turn green when compliant).</li>
+      </ul>
+      <p>You can sort the table by any column — sorting by <strong>Δ%</strong> ascending quickly shows you which parcels are most reduced and may need rebalancing.</p>
 
       <div class="tip">
         <strong>Tip — Δ% colour gradient:</strong> Turn on the <em>Δ% color gradient</em> button in the toolbar to colour private parcels from red (most reduced) to green (least reduced). This gives you an immediate visual read of which parcels are carrying a disproportionate share of the land contribution — those in red are the ones most in need of adjustment to equalize the reduction across owners.
       </div>
 
-      <h3>Exporting your work</h3>
+      <h3>Step 6 — Export your work</h3>
+      <p>Once you are satisfied with the layout and all violations are resolved, export the results to share with stakeholders or carry into further analysis.</p>
       <ul>
-        <li><strong>Export KML</strong> — saves the current parcel layout as a KML file you can open in Google Earth or other GIS tools.</li>
-        <li><strong>Export CSV</strong> — saves the statistics table as a spreadsheet.</li>
+        <li><strong>Export KML</strong> — saves the current parcel layout as a KML file you can open in Google Earth, QGIS, or other GIS tools for further refinement or presentation.</li>
+        <li><strong>Export CSV</strong> — saves the statistics table as a spreadsheet, useful for documenting the land contribution of each owner and supporting negotiations or formal planning submissions.</li>
       </ul>
 
     </div>
@@ -505,7 +538,7 @@
 <div id="side-panel">
   <div id="drag-handle"></div>
   <div id="panel-header">
-    <span id="panel-title">LandRe Editor</span>
+    <span id="panel-title">Land Readjustment App</span>
     <button id="panel-toggle" onclick="togglePanel()">◀</button>
   </div>
   <div id="panel-body">
@@ -515,6 +548,7 @@
       Parameters <span class="caret">▾</span>
     </div>
     <div id="params-body">
+      <p style="font-size:12px; color:#555; padding: 6px 4px 4px;">Enter the parameters for your land readjustment project below.</p>
       <div class="param-row">
         <label>Max reduction (%)</label>
         <input type="number" id="p-max-red" value="30" min="0" max="100" onchange="computeStats()">
@@ -535,7 +569,7 @@
 
     <!-- Parcel table -->
     <div class="sec-hdr" onclick="toggleSection('table-body',this)">
-      Parcels <span id="table-cols-badge" class="cols-badge">scroll for more ▸</span><span class="caret">▾</span>
+      Parcels <span id="table-cols-badge" class="cols-badge">scroll for more <span style="font-size:14px;line-height:1">▸</span></span><span class="caret">▾</span>
     </div>
     <div id="table-body">
       <div id="table-scroll-wrap">
@@ -922,6 +956,30 @@ function latlngsToTurf(latlngs) {
 
 // ── Stage 2: KML upload ───────────────────────────────────────────────────────
 
+async function loadDemoKML() {
+  if (!confirmDestructive('Loading demo KML')) return;
+  try {
+    const text = await fetch('/static/demo/Rwanda3.kml').then(r => {
+      if (!r.ok) throw new Error('Could not fetch demo file');
+      return r.text();
+    });
+    const blob = new Blob([text], { type: 'application/vnd.google-earth.kml+xml' });
+    const formData = new FormData();
+    formData.append('file', blob, 'Rwanda3.kml');
+    try {
+      const res = await fetch('/api/upload/kml', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error();
+      const fc = await res.json();
+      if (fc.features?.length > 0) { loadOriginals(fc.features); return; }
+    } catch {}
+    const features = parseKMLBrowser(text);
+    if (features.length > 0) loadOriginals(features);
+    else alert('No polygon features found in the demo KML.');
+  } catch (err) {
+    alert('Could not load demo: ' + err.message);
+  }
+}
+
 async function handleKMLFile(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -1097,7 +1155,9 @@ function refreshEditableLayer() {
   Object.values(STATE.editableParcels).forEach(parcel => {
     let style = getTypeStyle(parcel.type);
     if (_gradientMap && parcel.type === 'Private parcel' && _gradientMap[parcel.id] !== undefined) {
-      const t = _gradRange > 0 ? (_gradientMap[parcel.id] - _gradMin) / _gradRange : 0.5;
+      const t = _gradRange > 0.01
+        ? (_gradientMap[parcel.id] - _gradMin) / _gradRange
+        : (_gradientMode === 'overlap' ? Math.min(1, Math.max(0, _gradMin / 100)) : 0.5);
       // t=0 → worst value (red), t=1 → best value (green)
       style = {
         fillColor:   lerpHex(192, 57, 43,  39, 174, 96, t),
@@ -1141,7 +1201,7 @@ function refreshEditableLayer() {
       const widthPx  = (parcel.roadWidth || 6) / mpp;
       const fontSize = Math.min(Math.max(Math.round(widthPx * 0.55), 7), 12);
       poly.bindTooltip(
-        `<span style="display:inline-block;transform:rotate(${ang.toFixed(1)}deg);font-size:${fontSize}px;font-weight:700;color:#fff;text-shadow:0 0 2px rgba(0,0,0,.75),0 0 2px rgba(0,0,0,.75);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${maxWidthPx}px;">${escHtml(parcel.name)}</span>`,
+        `<span style="display:inline-block;transform:rotate(${ang.toFixed(1)}deg);font-family:'Inter',sans-serif;font-size:${fontSize}px;font-weight:700;color:#fff;text-shadow:0 0 2px rgba(0,0,0,.75),0 0 2px rgba(0,0,0,.75);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:${maxWidthPx}px;">${escHtml(parcel.name)}</span>`,
         { permanent: true, direction: 'center', className: 'road-label' }
       );
     } else {
@@ -3494,7 +3554,7 @@ function refreshOrigLayer() {
       color: '#c0c0c0', weight: 1.5, dashArray: '6 5',
       fillColor: '#d8d8d8', fillOpacity: 0.08, interactive: false,
     });
-    poly.bindTooltip(orig.name, { permanent: true, direction: 'center', className: 'orig-label' });
+    poly.bindTooltip(orig.name, { permanent: true, direction: 'center', className: 'orig-label', offset: [0, 14] });
     if (editMode) poly.on('click', e => { L.DomEvent.stopPropagation(e); selectOriginal(orig.id); });
     STATE.origLG.addLayer(poly);
   });
