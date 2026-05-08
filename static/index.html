@@ -285,6 +285,17 @@
     }
     #edge-op-hint.visible { display: block; }
 
+    /* ── Mobile draw-finish button ── */
+    #draw-finish-btn {
+      display: none; position: fixed; bottom: 24px;
+      left: 50%; transform: translateX(-50%);
+      background: #27ae60; color: white; border: none;
+      padding: 12px 28px; border-radius: 28px; font-size: 15px; font-weight: 700;
+      z-index: 2100; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+      white-space: nowrap;
+    }
+    #draw-finish-btn.visible { display: block; }
+
     /* ── User guide overlay ── */
     #guide-overlay {
       display: none; position: fixed; inset: 0;
@@ -353,32 +364,72 @@
       display: flex; justify-content: space-between;
       font-size: 10px; color: #444;
     }
+    /* Mobile: collapsed state shows only the title row */
+    #gradient-legend.legend-collapsed { min-width: 0; padding: 6px 10px; }
+    #gradient-legend.legend-collapsed .legend-bar,
+    #gradient-legend.legend-collapsed .legend-labels { display: none; }
+    #gradient-legend.legend-collapsed .legend-title { margin-bottom: 0; }
+    #legend-title .legend-caret { display: none; margin-left: 4px; font-style: normal; }
+
+    /* ══ Mobile menu/stats overlay buttons (hidden on desktop) ════════════ */
+    #mobile-menu-btn, #mobile-stats-card, #menu-backdrop { display: none; }
 
     /* ══ Mobile / touch layout ═════════════════════════════════════════════ */
     @media (max-width: 900px) {
-      /* Toolbar → bottom horizontal strip */
+      /* Toolbar → left side drawer (hidden until menu-open) */
       #toolbar {
-        position: fixed; bottom: 0; left: 0; right: 0; top: auto;
-        flex-direction: row; height: 60px; max-height: 60px;
-        overflow-x: auto; overflow-y: hidden;
-        background: white; border-top: 2px solid #ccc;
-        padding: 6px 8px; gap: 4px; z-index: 2000;
-        -webkit-overflow-scrolling: touch; scrollbar-width: none;
+        position: fixed; top: 0; left: 0; bottom: 0; right: auto;
+        flex-direction: column; width: 220px;
+        max-height: 100vh; height: 100vh;
+        overflow-x: hidden; overflow-y: auto;
+        background: white; border-right: 2px solid #ccc;
+        padding: 54px 8px 20px; gap: 4px; z-index: 2500;
+        transform: translateX(-110%); transition: transform 0.25s ease;
+        box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+        scrollbar-width: none;
       }
       #toolbar::-webkit-scrollbar { display: none; }
-      .tool-sep { border: none; border-left: 1px solid #ccc; height: 28px; margin: 0 2px; flex-shrink: 0; }
-      .tool-group-label { display: none; }
-      .tool-btn { min-width: auto; min-height: 44px; flex-shrink: 0; }
-      .tool-shrink-row { min-height: 44px; flex-shrink: 0; }
-      #btn-panel { display: inline-flex !important; align-items: center;
-                   background: #2c3e50; color: white; border-color: #1a3d50; }
+      #toolbar.menu-open { transform: translateX(0); }
+      .tool-sep { border: none; border-top: 1px solid #ccc; margin: 2px 0; }
+      .tool-group-label { display: block; }
+      .tool-btn { min-width: 148px; min-height: 44px; }
+      .tool-shrink-row { min-height: 44px; }
+      #btn-panel { display: block !important; }
 
-      /* Map fills viewport minus toolbar */
-      #map { height: calc(100vh - 60px) !important; }
+      /* Map fills full viewport */
+      #map { height: 100vh !important; }
 
-      /* Side panel → bottom sheet */
+      /* Backdrop behind drawer */
+      #menu-backdrop {
+        display: none; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.4); z-index: 2400;
+      }
+      #menu-backdrop.open { display: block; }
+
+      /* Mobile menu button — top left */
+      #mobile-menu-btn {
+        display: flex; align-items: center; justify-content: center;
+        position: fixed; top: 10px; left: 10px; z-index: 2000;
+        width: 44px; height: 44px;
+        background: white; border: 1px solid #bbb; border-radius: 6px;
+        font-size: 22px; cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+      }
+
+      /* Mobile stats card — top right (leaves room for Leaflet zoom controls ~40px) */
+      #mobile-stats-card {
+        display: block; position: fixed; top: 10px; right: 50px; z-index: 2000;
+        background: white; border: 1px solid #bbb; border-radius: 6px;
+        padding: 5px 10px; cursor: pointer; text-align: center; min-width: 68px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.18); line-height: 1.3;
+      }
+      #mobile-stats-card .msc-label { font-size: 10px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+      #mobile-stats-card .msc-count { font-size: 18px; font-weight: 700; color: #2c3e50; }
+      #mobile-stats-card .msc-viol  { font-size: 10px; font-weight: 600; }
+
+      /* Side panel → bottom sheet (from bottom edge, not above toolbar) */
       #side-panel {
-        position: fixed; bottom: 60px; left: 0; right: 0;
+        position: fixed; bottom: 0; left: 0; right: 0;
         width: 100% !important; min-width: 0 !important;
         height: 72vh; z-index: 1500;
         border-left: none; border-top: 2px solid #ddd;
@@ -388,9 +439,11 @@
       #drag-handle { display: none; }
       #panel-toggle { font-size: 20px; padding: 4px 8px; }
 
-      /* Basemap + legend clear of toolbar */
-      #basemap-ctrl { bottom: 68px; left: 10px; }
-      #gradient-legend { bottom: 130px; }
+      /* Basemap + legend clear of any bottom elements */
+      #basemap-ctrl { bottom: 10px; left: 10px; }
+      #gradient-legend { bottom: 75px; cursor: pointer; }
+      #gradient-legend .legend-title { pointer-events: none; }
+      #legend-title .legend-caret { display: inline; }
 
       /* Larger vertex handles for touch (28 px → ~44 px tap target) */
       .vhandle-v  { width: 28px; height: 28px; margin: -14px 0 0 -14px; border-width: 3px; }
@@ -420,6 +473,18 @@
 
 <!-- ── Map ─────────────────────────────────────────────────────────────── -->
 <div id="map"></div>
+
+<!-- ── Mobile draw-finish floating button ───────────────────────────────── -->
+<button id="draw-finish-btn" onclick="finishDrawing()">✔ Close polygon</button>
+
+<!-- ── Mobile menu backdrop + buttons ───────────────────────────────────── -->
+<div id="menu-backdrop" onclick="closeMobileMenu()"></div>
+<button id="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Open menu">☰</button>
+<div id="mobile-stats-card" onclick="togglePanel()" title="Open statistics panel">
+  <div class="msc-label">Parcels</div>
+  <div class="msc-count" id="msc-count">—</div>
+  <div class="msc-viol"  id="msc-viol">—</div>
+</div>
 
 <!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
 <div id="toolbar">
@@ -471,8 +536,8 @@
 </div>
 
 <!-- ── Gradient legend ──────────────────────────────────────────────────── -->
-<div id="gradient-legend">
-  <div class="legend-title" id="legend-title">Size change gradient</div>
+<div id="gradient-legend" onclick="toggleLegendCollapse()">
+  <div class="legend-title" id="legend-title">Size change gradient<i class="legend-caret"> ▾</i></div>
   <div class="legend-bar"></div>
   <div class="legend-labels">
     <span id="legend-min">—</span>
@@ -793,6 +858,10 @@ function initMap() {
   });
 
   initResizeHandle();
+  positionLegendSafe();
+  window.addEventListener('resize', positionLegendSafe);
+  document.fonts.ready.then(positionLegendSafe);
+  new ResizeObserver(positionLegendSafe).observe(document.getElementById('toolbar'));
 
   // On mobile: start panel hidden
   if (window.innerWidth <= 900) {
@@ -831,6 +900,8 @@ function activateTool(name) {
 
   STATE.activeTool = name;
 
+  if (window.innerWidth <= 900) closeMobileMenu();
+
   // Re-render editable layer now that activeTool is updated, so the interactive
   // flag (disabled in edit-orig mode to let clicks reach original parcels) is correct.
   refreshEditableLayer();
@@ -851,6 +922,42 @@ function clientXY(e) {
   return { clientX: e ? e.clientX : 0, clientY: e ? e.clientY : 0 };
 }
 
+// Adds both dblclick (desktop) and double-tap (mobile) to an element.
+function addDoubleTapListener(el, callback) {
+  el.addEventListener('dblclick', e => { e.stopPropagation(); e.preventDefault(); callback(e); });
+  let _lastTap = 0;
+  el.addEventListener('touchend', e => {
+    const now = Date.now();
+    // Do NOT stopPropagation here — the drag's document-level touchend onUp must still fire.
+    if (now - _lastTap < 300) { e.preventDefault(); callback(e); }
+    _lastTap = now;
+  });
+}
+
+// Adds both contextmenu (desktop right-click) and long-press (mobile) to an element.
+function addLongPressListener(el, callback) {
+  el.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); callback(e); });
+  let _lpTimer = null;
+  el.addEventListener('touchstart', () => {
+    _lpTimer = setTimeout(() => { _lpTimer = null; callback(null); }, 600);
+  }, { passive: true });
+  el.addEventListener('touchmove',  () => { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } });
+  el.addEventListener('touchend',   () => { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } });
+}
+
+// ── Mobile menu helpers ───────────────────────────────────────────────────────
+function toggleMobileMenu() {
+  const toolbar   = document.getElementById('toolbar');
+  const backdrop  = document.getElementById('menu-backdrop');
+  const isOpen    = toolbar.classList.toggle('menu-open');
+  backdrop.classList.toggle('open', isOpen);
+}
+
+function closeMobileMenu() {
+  document.getElementById('toolbar').classList.remove('menu-open');
+  document.getElementById('menu-backdrop').classList.remove('open');
+}
+
 // ── Panel / section UI ───────────────────────────────────────────────────────
 function togglePanel() {
   const panel = document.getElementById('side-panel');
@@ -861,8 +968,35 @@ function togglePanel() {
   } else {
     const collapsed = panel.classList.toggle('collapsed');
     btn.textContent = collapsed ? '▶' : '◀';
+    if (collapsed) {
+      // Store current inline width so we can restore it on expand
+      panel.dataset.expandedWidth = panel.style.width || '';
+      panel.style.width    = '';
+      panel.style.minWidth = '';
+    } else if (panel.dataset.expandedWidth) {
+      panel.style.width    = panel.dataset.expandedWidth;
+      panel.style.minWidth = panel.dataset.expandedWidth;
+    }
   }
   map.invalidateSize();
+}
+
+function positionLegendSafe() {
+  const legend  = document.getElementById('gradient-legend');
+  const basemap = document.getElementById('basemap-ctrl');
+  if (window.innerWidth <= 900) {
+    legend.style.left = '';
+    basemap.style.left = '';
+    return;
+  }
+  // Use scrollWidth so that an active scrollbar (which shrinks clientWidth but
+  // not scrollWidth) does not cause the measurement to miss the scrollbar track.
+  const toolbar = document.getElementById('toolbar');
+  const tbLeft  = toolbar.getBoundingClientRect().left;
+  const tbWidth = Math.max(toolbar.getBoundingClientRect().width, toolbar.scrollWidth);
+  const left = Math.ceil(tbLeft + tbWidth) + 12 + 'px';
+  legend.style.left  = left;
+  basemap.style.left = left;
 }
 
 function initResizeHandle() {
@@ -933,6 +1067,12 @@ function generateId() {
   return '_' + Math.random().toString(36).substr(2, 9);
 }
 
+function parcelLabel(i) {
+  const letter = String.fromCharCode(65 + (i % 26));
+  const cycle  = Math.floor(i / 26);
+  return cycle === 0 ? letter : letter + cycle;
+}
+
 function getTypeStyle(type) {
   return {
     'Private parcel':    { color: '#1a7a1a', fillColor: '#90ee90', fillOpacity: 0.45 },
@@ -970,14 +1110,31 @@ function updateGradientLegend(minVal, maxVal, hasData) {
     el.classList.remove('visible');
     return;
   }
+  const wasHidden = !el.classList.contains('visible');
   el.classList.add('visible');
-  document.getElementById('legend-title').textContent =
-    _gradientMode === 'overlap' ? 'Ovlp% gradient' : 'Size change gradient';
+  // On mobile, auto-collapse when first shown
+  if (wasHidden && window.innerWidth <= 900) el.classList.add('legend-collapsed');
+
+  const titleText = _gradientMode === 'overlap' ? 'Ovlp% gradient' : 'Size change gradient';
+  const titleEl = document.getElementById('legend-title');
+  // Update text without clobbering the caret <i> child
+  const caret = titleEl.querySelector('.legend-caret');
+  titleEl.textContent = titleText;
+  if (caret) titleEl.appendChild(caret);
+
   const fmt = _gradientMode === 'overlap'
     ? v => v.toFixed(1) + '%'
     : v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
   document.getElementById('legend-min').textContent = fmt(minVal);
   document.getElementById('legend-max').textContent = fmt(maxVal);
+}
+
+function toggleLegendCollapse() {
+  if (window.innerWidth > 900) return; // desktop: no collapse
+  const el = document.getElementById('gradient-legend');
+  const collapsed = el.classList.toggle('legend-collapsed');
+  const caret = el.querySelector('.legend-caret');
+  if (caret) caret.textContent = collapsed ? ' ▾' : ' ▴';
 }
 
 function formatArea(m2) {
@@ -1092,7 +1249,7 @@ function parseKMLBrowser(text) {
   const feats = [];
   pms.forEach((pm, i) => {
     const nameEl = pm.querySelector('name');
-    const name   = nameEl?.textContent.trim() || `Parcel ${String.fromCharCode(65 + i)}`;
+    const name   = nameEl?.textContent.trim() || `Parcel ${parcelLabel(i)}`;
     const polyEl = pm.querySelector('Polygon');
     if (!polyEl) return;
     const raw = polyEl.querySelector('coordinates')?.textContent.trim();
@@ -1131,7 +1288,7 @@ function loadOriginals(features) {
 
   features.forEach((feat, i) => {
     const id   = generateId();
-    const name = feat.properties?.name || `Parcel ${String.fromCharCode(65 + i)}`;
+    const name = feat.properties?.name || `Parcel ${parcelLabel(i)}`;
     const ring = feat.geometry.coordinates;
     const area = turf.area(feat);
 
@@ -1294,11 +1451,20 @@ function refreshEditableLayer() {
         if (STATE.activeTool === 'draw' || STATE.activeTool === 'draw-road' || STATE.tracingMode) return;
         L.DomEvent.stopPropagation(e);
         if (_parcelJustDragged) { _parcelJustDragged = false; return; }
+        // Double-tap detection for rename on mobile (Leaflet maps touch taps to click)
+        const now = Date.now();
+        if (_lastPolyTap.id === parcel.id && now - _lastPolyTap.t < 350) {
+          _lastPolyTap = { id: null, t: 0 };
+          renameParcel(parcel.id); return;
+        }
+        _lastPolyTap = { id: parcel.id, t: now };
         handlePolygonClick(parcel.id, e);
       });
       poly.on('dblclick', e => {
         if (STATE.activeTool === 'draw' || STATE.activeTool === 'draw-road' || STATE.tracingMode) return;
-        L.DomEvent.stopPropagation(e); renameParcel(parcel.id);
+        L.DomEvent.stopPropagation(e);
+        _lastPolyTap = { id: null, t: 0 }; // prevent double-fire from click handler
+        renameParcel(parcel.id);
       });
     }
     poly._parcelId = parcel.id;
@@ -1338,6 +1504,7 @@ let clickTimer     = null;   // debounce single vs double-click during drawing
 let _pendingClickLL = null;  // latlng waiting inside clickTimer, so dblclick can commit it
 let _justDragged        = false;  // suppresses map click immediately after a vertex drag
 let _parcelJustDragged  = false;  // suppresses polygon click after a parcel body drag
+let _lastPolyTap   = { id: null, t: 0 }; // double-tap detection for parcel rename on mobile
 let _snapTarget         = null;   // LatLng | null — nearest vertex within snap radius while drawing
 let _snapMarker         = null;   // circleMarker shown at the snap target
 let _snapType           = 'vertex'; // 'vertex' | 'intersection'
@@ -1364,11 +1531,13 @@ function onMapClick(e) {
   const isPolygon = STATE.activeTool === 'draw' || STATE.tracingMode;
   const isRoad    = STATE.activeTool === 'draw-road';
   if (isPolygon || isRoad) {
-    // Close polygon if clicked within 15px of first vertex (polygon mode only, needs 3+ verts)
+    // Close polygon if tapped/clicked within snap distance of first vertex (needs 3+ verts)
     if (isPolygon && STATE.drawVerts.length >= 3) {
       const firstPt = map.latLngToContainerPoint(STATE.drawVerts[0]);
       const clickPt = map.latLngToContainerPoint(e.latlng);
-      if (firstPt.distanceTo(clickPt) <= SNAP_CLICK_PX) {
+      const isTouch = !!(e.originalEvent?.touches || e.originalEvent?.changedTouches);
+      const closeSnap = isTouch ? 64 : SNAP_CLICK_PX;
+      if (firstPt.distanceTo(clickPt) <= closeSnap) {
         if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
         finishDrawing();
         return;
@@ -1526,32 +1695,57 @@ function updateSnapMarker(ll) {
 function showCloseMarker() {
   removeCloseMarker();
   const firstVert = STATE.drawVerts[0];
+  const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   _closeMarker = L.circleMarker(firstVert, {
-    radius: 10, color: '#27ae60', weight: 2.5,
-    fillColor: '#27ae60', fillOpacity: 0.35, interactive: true
+    radius: isTouch ? 22 : 10, color: '#27ae60', weight: 2.5,
+    fillColor: '#27ae60', fillOpacity: isTouch ? 0.22 : 0.35, interactive: true
   });
-  _closeMarker.bindTooltip('Click to close polygon', { direction: 'top', offset: [0, -8] });
+  _closeMarker.bindTooltip(isTouch ? 'Tap to close' : 'Click to close polygon',
+    { direction: 'top', offset: [0, -8] });
   _closeMarker.on('click', e => {
     L.DomEvent.stopPropagation(e);
     if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
     finishDrawing();
   });
   _closeMarker.addTo(map);
-  // Apply pulse class to the underlying SVG element
   setTimeout(() => {
     const el = _closeMarker.getElement();
-    if (el) el.classList.add('close-pulse');
+    if (el) {
+      el.classList.add('close-pulse');
+      // Direct touchend listener bypasses Leaflet's synthesized-click delay/drift issues
+      el.addEventListener('touchend', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (clickTimer !== null) { clearTimeout(clickTimer); clickTimer = null; }
+        finishDrawing();
+      }, { passive: false });
+    }
   }, 0);
+  // Show the finish button on any touch-capable device for a reliable tap target
+  if (isTouch) {
+    const btn = document.getElementById('draw-finish-btn');
+    if (btn) { btn.textContent = '✔ Close polygon'; btn.classList.add('visible'); }
+  }
 }
 
 function removeCloseMarker() {
   if (_closeMarker) { _closeMarker.remove(); _closeMarker = null; }
+  const btn = document.getElementById('draw-finish-btn');
+  if (btn) btn.classList.remove('visible');
 }
 
 function addDrawVertex(latlng) {
   STATE.drawVerts.push(latlng);
   updateDrawPreview();
-  if (STATE.drawVerts.length >= 3 && STATE.activeTool !== 'draw-road') showCloseMarker();
+  if (STATE.activeTool === 'draw-road') {
+    // Roads can be finished with 2+ verts — show the finish button on mobile
+    if ((('ontouchstart' in window) || navigator.maxTouchPoints > 0) && STATE.drawVerts.length >= 2) {
+      const btn = document.getElementById('draw-finish-btn');
+      if (btn) { btn.textContent = '✔ Finish road'; btn.classList.add('visible'); }
+    }
+  } else if (STATE.drawVerts.length >= 3) {
+    showCloseMarker();
+  }
 }
 
 function updateDrawPreview(moveLatlng) {
@@ -1649,7 +1843,7 @@ function finishDrawing() {
     addTracedOriginal(verts);
   } else {
     if (verts.length < 3) return;
-    const autoName = `Parcel ${String.fromCharCode(65 + Object.keys(STATE.editableParcels).length)}`;
+    const autoName = `Parcel ${parcelLabel(Object.keys(STATE.editableParcels).length)}`;
     openNameDialog(autoName, 'Public', (name, type) => {
       pushHistory();
       const id = generateId();
@@ -1916,16 +2110,12 @@ function renderVertexHandles(id) {
       else startVertexDrag(id, idx, d);
     });
     if (isCompound) {
-      div.addEventListener('dblclick', e => {
-        e.stopPropagation();
-        e.preventDefault();
+      addDoubleTapListener(div, () => {
         STATE.compoundSel = { type: 'vertex', members: cmembers };
         renderVertexHandles(id);
       });
     }
-    div.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      e.stopPropagation();
+    addLongPressListener(div, () => {
       if (p.latlngs.length <= 3) return;
       pushHistory();
       p.latlngs.splice(idx, 1);
@@ -1956,9 +2146,7 @@ function renderVertexHandles(id) {
       else startEdgeDragOrInsert(id, i, mid, d, e);
     });
     if (isCompoundEdge) {
-      edgeDiv.addEventListener('dblclick', e => {
-        e.stopPropagation();
-        e.preventDefault();
+      addDoubleTapListener(edgeDiv, () => {
         closeEdgePopup();
         STATE.compoundSel = { type: 'edge', members: emembers };
         renderVertexHandles(id);
@@ -2421,7 +2609,7 @@ function startTracing() {
 function addTracedOriginal(verts) {
   const i       = STATE.originalFeatures.length;
   const id      = generateId();
-  const name    = `Parcel ${String.fromCharCode(65 + i)}`;
+  const name    = `Parcel ${parcelLabel(i)}`;
   const coords  = latlngsToCoords(verts);
   const geojson = turf.feature({ type: 'Polygon', coordinates: [coords] }, { name });
   STATE.originalFeatures.push({ id, name, area: turf.area(geojson), geojson });
@@ -2570,6 +2758,16 @@ function computeStats() {
   STATE.lastParcelStats = parcelStats;
   renderParcelTable(parcelStats, params);
   renderSummary(summary);
+
+  // Update mobile stats card
+  const mscCount = document.getElementById('msc-count');
+  const mscViol  = document.getElementById('msc-viol');
+  if (mscCount) mscCount.textContent = parcelStats.length || '—';
+  if (mscViol) {
+    const v = summary.violationCount || 0;
+    mscViol.textContent = v + (v === 1 ? ' violation' : ' violations');
+    mscViol.style.color = v > 0 ? '#c0392b' : '#27ae60';
+  }
 }
 
 // ── Stage 4: parcel table ─────────────────────────────────────────────────────
@@ -3394,8 +3592,7 @@ function renderRoadHandles(id) {
       startRoadVertexDrag(id, idx, div);
     }, { passive: false });
     div.addEventListener('click', e => e.stopPropagation());
-    div.addEventListener('contextmenu', e => {
-      e.preventDefault(); e.stopPropagation();
+    addLongPressListener(div, () => {
       if (p.roadVerts.length <= 2) return;
       pushHistory();
       p.roadVerts.splice(idx, 1);
@@ -3712,9 +3909,9 @@ function renderOrigVertexHandles(id) {
     div.className = 'vhandle-v';
     div.style.left = pt.x + 'px'; div.style.top = pt.y + 'px'; div._ll = ll;
     div.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); map.dragging.disable(); startOrigVertexDrag(id, idx, div); });
+    div.addEventListener('touchstart', e => { e.stopPropagation(); e.preventDefault(); map.dragging.disable(); startOrigVertexDrag(id, idx, div); }, { passive: false });
     div.addEventListener('click', e => e.stopPropagation());
-    div.addEventListener('contextmenu', e => {
-      e.preventDefault(); e.stopPropagation();
+    addLongPressListener(div, () => {
       if (lls.length <= 3) return;
       pushHistory(); lls.splice(idx, 1); syncGeom();
       computeProjectBoundary(); refreshOrigLayer(); renderOrigVertexHandles(id); computeStats();
@@ -3732,12 +3929,13 @@ function renderOrigVertexHandles(id) {
     div.className = 'vhandle-m';
     div.style.left = pt.x + 'px'; div.style.top = pt.y + 'px'; div._ll = mid;
     const insertAt = i + 1;
-    div.addEventListener('mousedown', e => {
-      e.stopPropagation(); e.preventDefault(); map.dragging.disable();
+    const doInsert = () => {
       pushHistory(); lls.splice(insertAt, 0, L.latLng(mid.lat, mid.lng)); syncGeom();
       computeProjectBoundary(); refreshOrigLayer(); renderOrigVertexHandles(id); computeStats();
       startOrigVertexDrag(id, insertAt, _origVertexMarkers[insertAt]);
-    });
+    };
+    div.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); map.dragging.disable(); doInsert(); });
+    div.addEventListener('touchstart', e => { e.stopPropagation(); e.preventDefault(); map.dragging.disable(); doInsert(); }, { passive: false });
     div.addEventListener('click', e => e.stopPropagation());
     container.appendChild(div);
   }
@@ -3752,8 +3950,9 @@ function startOrigVertexDrag(id, idx, marker) {
 
   function onMove(e) {
     if (!_moved) { pushHistory(); _moved = true; }
-    const rect   = _container.getBoundingClientRect();
-    const rawLL  = map.containerPointToLatLng(L.point(e.clientX - rect.left, e.clientY - rect.top));
+    const rect = _container.getBoundingClientRect();
+    const { clientX, clientY } = clientXY(e);
+    const rawLL  = map.containerPointToLatLng(L.point(clientX - rect.left, clientY - rect.top));
     const snapLL = findSnapVertex(rawLL, null);
     const ll = snapLL || rawLL;
     updateSnapMarker(snapLL);
@@ -3770,12 +3969,16 @@ function startOrigVertexDrag(id, idx, marker) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup',   onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend',  onUp);
     map.dragging.enable(); updateSnapMarker(null);
     if (_moved) { _justDragged = true; setTimeout(() => { _justDragged = false; }, 50); renderOrigVertexHandles(id); }
   }
 
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup',   onUp);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend',  onUp);
 }
 
 
