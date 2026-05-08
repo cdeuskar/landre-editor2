@@ -353,6 +353,56 @@
       display: flex; justify-content: space-between;
       font-size: 10px; color: #444;
     }
+
+    /* ══ Mobile / touch layout ═════════════════════════════════════════════ */
+    @media (max-width: 900px) {
+      /* Toolbar → bottom horizontal strip */
+      #toolbar {
+        position: fixed; bottom: 0; left: 0; right: 0; top: auto;
+        flex-direction: row; height: 60px; max-height: 60px;
+        overflow-x: auto; overflow-y: hidden;
+        background: white; border-top: 2px solid #ccc;
+        padding: 6px 8px; gap: 4px; z-index: 2000;
+        -webkit-overflow-scrolling: touch; scrollbar-width: none;
+      }
+      #toolbar::-webkit-scrollbar { display: none; }
+      .tool-sep { border: none; border-left: 1px solid #ccc; height: 28px; margin: 0 2px; flex-shrink: 0; }
+      .tool-group-label { display: none; }
+      .tool-btn { min-width: auto; min-height: 44px; flex-shrink: 0; }
+      .tool-shrink-row { min-height: 44px; flex-shrink: 0; }
+      #btn-panel { display: inline-flex !important; align-items: center;
+                   background: #2c3e50; color: white; border-color: #1a3d50; }
+
+      /* Map fills viewport minus toolbar */
+      #map { height: calc(100vh - 60px) !important; }
+
+      /* Side panel → bottom sheet */
+      #side-panel {
+        position: fixed; bottom: 60px; left: 0; right: 0;
+        width: 100% !important; min-width: 0 !important;
+        height: 72vh; z-index: 1500;
+        border-left: none; border-top: 2px solid #ddd;
+        transform: translateY(110%); transition: transform 0.3s ease;
+      }
+      #side-panel.panel-open { transform: translateY(0); }
+      #drag-handle { display: none; }
+      #panel-toggle { font-size: 20px; padding: 4px 8px; }
+
+      /* Basemap + legend clear of toolbar */
+      #basemap-ctrl { bottom: 68px; left: 10px; }
+      #gradient-legend { bottom: 130px; }
+
+      /* Larger vertex handles for touch (28 px → ~44 px tap target) */
+      .vhandle-v  { width: 28px; height: 28px; margin: -14px 0 0 -14px; border-width: 3px; }
+      .vhandle-m  { width: 24px; height: 24px; margin: -12px 0 0 -12px; }
+      .vhandle-road { width: 28px; height: 28px; margin: -14px 0 0 -14px; border-width: 3px; }
+
+      /* Bigger modal inputs */
+      #name-dialog-box input, #name-dialog-box select,
+      #road-dialog-box  input, #road-dialog-box  select { font-size: 16px; padding: 8px 6px; }
+      #name-dialog-box button, #road-dialog-box button { min-height: 44px; padding: 8px 16px; }
+      #edge-popup button { min-height: 44px; padding: 12px 14px; }
+    }
   </style>
 
 <!-- Google tag (gtag.js) -->
@@ -408,6 +458,8 @@
   <button class="tool-btn active" id="btn-delta-gradient" onclick="toggleDeltaGradient()">Color gradient: Size change ▾</button>
   <hr class="tool-sep">
   <button class="tool-btn" onclick="exportKML()">⬇ Export KML</button>
+  <hr class="tool-sep">
+  <button class="tool-btn" id="btn-panel" onclick="togglePanel()" style="display:none">☰ Panel</button>
 </div>
 
 <!-- ── Basemap switcher ─────────────────────────────────────────────────── -->
@@ -741,6 +793,14 @@ function initMap() {
   });
 
   initResizeHandle();
+
+  // On mobile: start panel hidden
+  if (window.innerWidth <= 900) {
+    const panel = document.getElementById('side-panel');
+    panel.classList.remove('panel-open');
+    const btn = document.getElementById('panel-toggle');
+    if (btn) btn.textContent = '▲';
+  }
 }
 
 function switchBasemap(type) {
@@ -782,12 +842,26 @@ function activateTool(name) {
   map.dragging[name === 'pan' ? 'enable' : 'enable'](); // always enabled (Leaflet default)
 }
 
+// ── Touch helper ─────────────────────────────────────────────────────────────
+function clientXY(e) {
+  if (e && e.touches && e.touches.length > 0)
+    return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+  if (e && e.changedTouches && e.changedTouches.length > 0)
+    return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
+  return { clientX: e ? e.clientX : 0, clientY: e ? e.clientY : 0 };
+}
+
 // ── Panel / section UI ───────────────────────────────────────────────────────
 function togglePanel() {
   const panel = document.getElementById('side-panel');
   const btn   = document.getElementById('panel-toggle');
-  const collapsed = panel.classList.toggle('collapsed');
-  btn.textContent = collapsed ? '▶' : '◀';
+  if (window.innerWidth <= 900) {
+    const isOpen = panel.classList.toggle('panel-open');
+    btn.textContent = isOpen ? '✕' : '▲';
+  } else {
+    const collapsed = panel.classList.toggle('collapsed');
+    btn.textContent = collapsed ? '▶' : '◀';
+  }
   map.invalidateSize();
 }
 
@@ -1212,7 +1286,7 @@ function refreshEditableLayer() {
     }
 
     if (!_editOrigMode) {
-      poly.on('mousedown', e => {
+      poly.on('mousedown touchstart', e => {
         if (STATE.activeTool === 'draw' || STATE.activeTool === 'draw-road' || STATE.tracingMode) return;
         L.DomEvent.stopPropagation(e); startParcelDrag(parcel.id, e.originalEvent);
       });
@@ -1815,6 +1889,12 @@ function renderVertexHandles(id) {
       map.dragging.disable();
       onDown(div, e);
     });
+    div.addEventListener('touchstart', e => {
+      e.stopPropagation();
+      e.preventDefault();
+      map.dragging.disable();
+      onDown(div, e.touches[0]);
+    }, { passive: false });
     div.addEventListener('click', e => e.stopPropagation());
     container.appendChild(div);
     return div;
@@ -1897,8 +1977,7 @@ function startParcelDrag(id, downEvent) {
 
   const _container   = map.getContainer();
   const rect         = _container.getBoundingClientRect();
-  const startClientX = downEvent.clientX;
-  const startClientY = downEvent.clientY;
+  const { clientX: startClientX, clientY: startClientY } = clientXY(downEvent);
   const startLL      = map.containerPointToLatLng(
     L.point(startClientX - rect.left, startClientY - rect.top)
   );
@@ -1923,8 +2002,9 @@ function startParcelDrag(id, downEvent) {
   map.dragging.disable();
 
   function onMove(e) {
-    const dx = e.clientX - startClientX;
-    const dy = e.clientY - startClientY;
+    const { clientX: _cx, clientY: _cy } = clientXY(e);
+    const dx = _cx - startClientX;
+    const dy = _cy - startClientY;
     if (!_moved && Math.hypot(dx, dy) < 3) return;
     if (!_moved) {
       pushHistory();
@@ -1938,7 +2018,7 @@ function startParcelDrag(id, downEvent) {
     }
 
     const curLL = map.containerPointToLatLng(
-      L.point(e.clientX - rect.left, e.clientY - rect.top)
+      L.point(_cx - rect.left, _cy - rect.top)
     );
     const dLat = curLL.lat - startLL.lat;
     const dLng = curLL.lng - startLL.lng;
@@ -1958,6 +2038,8 @@ function startParcelDrag(id, downEvent) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup',   onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend',  onUp);
     map.dragging.enable();
 
     if (!_moved) return; // no drag — let the click event fire normally
@@ -1973,6 +2055,8 @@ function startParcelDrag(id, downEvent) {
 
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup',   onUp);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend',  onUp);
 }
 
 // ── Stage 3: vertex drag ──────────────────────────────────────────────────────
@@ -1990,8 +2074,9 @@ function startVertexDrag(id, idx, marker) {
     const p = STATE.editableParcels[id];
     if (!p) return;
     const rect   = _container.getBoundingClientRect();
-    const x      = e.clientX - rect.left;
-    const y      = e.clientY - rect.top;
+    const { clientX: _cx, clientY: _cy } = clientXY(e);
+    const x      = _cx - rect.left;
+    const y      = _cy - rect.top;
     const rawLL  = map.containerPointToLatLng(L.point(x, y));
     const snapLL = findSnapVertex(rawLL, { parcelId: id, vertexIdx: idx });
     const ll     = snapLL || rawLL;
@@ -2010,6 +2095,8 @@ function startVertexDrag(id, idx, marker) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup',   onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend',  onUp);
     dragState = null;
     map.dragging.enable();
     updateSnapMarker(null);
@@ -2023,6 +2110,8 @@ function startVertexDrag(id, idx, marker) {
 
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup',   onUp);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend',  onUp);
 }
 
 // ── Stage 3: edge drag ────────────────────────────────────────────────────────
@@ -2035,8 +2124,7 @@ function startEdgeDragOrInsert(id, edgeIdx, midLatLng, marker, downEvent) {
 
   const _container = map.getContainer();
   const rect       = _container.getBoundingClientRect();
-  const startClientX = downEvent.clientX;
-  const startClientY = downEvent.clientY;
+  const { clientX: startClientX, clientY: startClientY } = clientXY(downEvent);
   const startLL = map.containerPointToLatLng(
     L.point(startClientX - rect.left, startClientY - rect.top)
   );
@@ -2057,8 +2145,9 @@ function startEdgeDragOrInsert(id, edgeIdx, midLatLng, marker, downEvent) {
   let _moved = false;
 
   function onMove(e) {
-    let dx = e.clientX - startClientX;
-    let dy = e.clientY - startClientY;
+    const { clientX: _cx, clientY: _cy } = clientXY(e);
+    let dx = _cx - startClientX;
+    let dy = _cy - startClientY;
     if (!_moved && Math.hypot(dx, dy) < 3) return;
     if (!_moved) { pushHistory(); _moved = true; }
 
@@ -2105,10 +2194,12 @@ function startEdgeDragOrInsert(id, edgeIdx, midLatLng, marker, downEvent) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup',   onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend',  onUp);
     map.dragging.enable();
 
     if (!_moved) {
-      showEdgePopup(id, edgeIdx, midLatLng, downEvent.clientX, downEvent.clientY);
+      showEdgePopup(id, edgeIdx, midLatLng, startClientX, startClientY);
       return;
     }
 
@@ -2120,6 +2211,8 @@ function startEdgeDragOrInsert(id, edgeIdx, midLatLng, marker, downEvent) {
 
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup',   onUp);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend',  onUp);
 }
 
 // ── Stage 3: compound vertex / edge drag ─────────────────────────────────────
@@ -2139,8 +2232,9 @@ function startCompoundVertexDrag(members, marker) {
   function onMove(e) {
     if (!_moved) { pushHistory(); dragState = { compound: true }; }
     _moved = true;
+    const { clientX: _cx, clientY: _cy } = clientXY(e);
     const rawLL = map.containerPointToLatLng(
-      L.point(e.clientX - rect.left, e.clientY - rect.top)
+      L.point(_cx - rect.left, _cy - rect.top)
     );
     const snapLL = findSnapVertex(rawLL, excludes);
     const ll = snapLL || rawLL;
@@ -2163,6 +2257,8 @@ function startCompoundVertexDrag(members, marker) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup',   onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend',  onUp);
     dragState = null;
     map.dragging.enable();
     updateSnapMarker(null);
@@ -2176,13 +2272,14 @@ function startCompoundVertexDrag(members, marker) {
 
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup',   onUp);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend',  onUp);
 }
 
 function startCompoundEdgeDrag(members, marker, downEvent) {
   const _container = map.getContainer();
   const rect = _container.getBoundingClientRect();
-  const startClientX = downEvent.clientX;
-  const startClientY = downEvent.clientY;
+  const { clientX: startClientX, clientY: startClientY } = clientXY(downEvent);
   const startMouseLL = map.containerPointToLatLng(
     L.point(startClientX - rect.left, startClientY - rect.top)
   );
@@ -2201,8 +2298,9 @@ function startCompoundEdgeDrag(members, marker, downEvent) {
   let _moved = false;
 
   function onMove(e) {
-    let dx = e.clientX - startClientX;
-    let dy = e.clientY - startClientY;
+    const { clientX: _cx, clientY: _cy } = clientXY(e);
+    let dx = _cx - startClientX;
+    let dy = _cy - startClientY;
     if (!_moved && Math.hypot(dx, dy) < 3) return;
     if (!_moved) { pushHistory(); dragState = { compound: true }; _moved = true; }
     if (e.shiftKey) {
@@ -2235,6 +2333,8 @@ function startCompoundEdgeDrag(members, marker, downEvent) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup',   onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend',  onUp);
     dragState = null;
     map.dragging.enable();
     if (_moved) {
@@ -2247,6 +2347,8 @@ function startCompoundEdgeDrag(members, marker, downEvent) {
 
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup',   onUp);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend',  onUp);
 }
 
 // ── Stage 3: insert / delete ──────────────────────────────────────────────────
@@ -3285,6 +3387,12 @@ function renderRoadHandles(id) {
       closeEdgePopup();
       startRoadVertexDrag(id, idx, div);
     });
+    div.addEventListener('touchstart', e => {
+      e.stopPropagation(); e.preventDefault();
+      map.dragging.disable();
+      closeEdgePopup();
+      startRoadVertexDrag(id, idx, div);
+    }, { passive: false });
     div.addEventListener('click', e => e.stopPropagation());
     div.addEventListener('contextmenu', e => {
       e.preventDefault(); e.stopPropagation();
@@ -3317,6 +3425,11 @@ function renderRoadHandles(id) {
       map.dragging.disable();
       startRoadMidpointInsert(id, insertIdx, mid);
     });
+    div.addEventListener('touchstart', e => {
+      e.stopPropagation(); e.preventDefault();
+      map.dragging.disable();
+      startRoadMidpointInsert(id, insertIdx, mid);
+    }, { passive: false });
     div.addEventListener('click', e => e.stopPropagation());
     container.appendChild(div);
   }
@@ -3331,7 +3444,8 @@ function startRoadVertexDrag(id, idx, marker) {
   function onMove(e) {
     if (!_moved) { pushHistory(); _moved = true; }
     const rect  = _container.getBoundingClientRect();
-    const rawLL = map.containerPointToLatLng(L.point(e.clientX - rect.left, e.clientY - rect.top));
+    const { clientX: _cx, clientY: _cy } = clientXY(e);
+    const rawLL = map.containerPointToLatLng(L.point(_cx - rect.left, _cy - rect.top));
     p.roadVerts[idx] = rawLL;
     if (marker && marker.parentNode) {
       const pt = map.latLngToContainerPoint(rawLL);
@@ -3352,6 +3466,8 @@ function startRoadVertexDrag(id, idx, marker) {
   function onUp() {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup',   onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend',  onUp);
     map.dragging.enable();
     if (_moved) {
       _justDragged = true;
@@ -3363,6 +3479,8 @@ function startRoadVertexDrag(id, idx, marker) {
 
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup',   onUp);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend',  onUp);
 }
 
 function startRoadMidpointInsert(id, insertIdx, midLatLng) {

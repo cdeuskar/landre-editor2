@@ -1,8 +1,9 @@
 import os
+import re
 import json
 import xml.etree.ElementTree as ET
-from fastapi import FastAPI, UploadFile, File
-from fastapi.responses import HTMLResponse, Response
+from fastapi import FastAPI, Request, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
@@ -10,11 +11,24 @@ app = FastAPI()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
+_MOBILE_UA = re.compile(r'Mobi|Android|iPhone|iPad|iPod|tablet', re.IGNORECASE)
 
-@app.get("/")
-async def index():
+def _serve_index():
     with open(os.path.join(BASE_DIR, "static", "index.html"), "r") as f:
         return HTMLResponse(f.read())
+
+
+@app.get("/")
+async def index(request: Request):
+    ua = request.headers.get("user-agent", "")
+    if _MOBILE_UA.search(ua):
+        return RedirectResponse(url="/mobile", status_code=302)
+    return _serve_index()
+
+
+@app.get("/mobile")
+async def mobile():
+    return _serve_index()
 
 
 @app.post("/api/upload/kml")
