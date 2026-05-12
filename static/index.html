@@ -262,19 +262,19 @@
     .btn-cancel  { background: #ecf0f1; border: 1px solid #bbb; }
 
     /* ── Edge-alignment popup ── */
-    #edge-popup {
+    #edge-popup, #road-vertex-popup {
       display: none; position: fixed; background: white;
       border: 1px solid #bbb; border-radius: 4px;
       box-shadow: 0 2px 10px rgba(0,0,0,.18);
       z-index: 9000; padding: 3px 0; min-width: 190px;
     }
-    #edge-popup.open { display: block; }
-    #edge-popup button {
+    #edge-popup.open, #road-vertex-popup.open { display: block; }
+    #edge-popup button, #road-vertex-popup button {
       display: block; width: 100%; padding: 7px 14px;
       border: none; background: white; cursor: pointer;
       font-size: 12px; text-align: left; white-space: nowrap;
     }
-    #edge-popup button:hover { background: #f0f6ff; }
+    #edge-popup button:hover, #road-vertex-popup button:hover { background: #f0f6ff; }
     #edge-popup hr { border: none; border-top: 1px solid #eee; margin: 3px 0; }
     #edge-op-hint {
       display: none; position: fixed; bottom: 42px;
@@ -454,7 +454,7 @@
       #name-dialog-box input, #name-dialog-box select,
       #road-dialog-box  input, #road-dialog-box  select { font-size: 16px; padding: 8px 6px; }
       #name-dialog-box button, #road-dialog-box button { min-height: 44px; padding: 8px 16px; }
-      #edge-popup button { min-height: 44px; padding: 12px 14px; }
+      #edge-popup button, #road-vertex-popup button { min-height: 44px; padding: 12px 14px; }
     }
   </style>
 
@@ -644,6 +644,10 @@
   <button onclick="startEdgeOp('perpendicular')">Make perpendicular to…</button>
   <hr>
   <button onclick="insertEdgeFromPopup()">Insert vertex here</button>
+</div>
+<div id="road-vertex-popup">
+  <button onclick="startRoadVertexOp('parallel')">Make parallel to…</button>
+  <button onclick="startRoadVertexOp('perpendicular')">Make perpendicular to…</button>
 </div>
 <div id="edge-op-hint"></div>
 
@@ -837,7 +841,7 @@ function initMap() {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); }
     if (e.key === 'Escape') {
       const _tracingWithVerts = STATE.tracingMode && STATE.drawVerts.length > 0;
-      cancelDraw(); cancelEdgeOp(); closeEdgePopup(); cancelRuler();
+      cancelDraw(); cancelEdgeOp(); closeEdgePopup(); closeRoadVertexPopup(); cancelRuler();
       if (STATE.tracingMode && !_tracingWithVerts) doneTracing();
       if (STATE.activeTool === 'edit-orig' && STATE.selectedOrigId) {
         STATE.selectedOrigId = null; _origVertexMarkers = [];
@@ -891,6 +895,7 @@ function activateTool(name) {
   cancelEdgeOp();
   cancelRuler();
   closeEdgePopup();
+  closeRoadVertexPopup();
   deselectAll();
 
   TOOL_BTNS.forEach(t => {
@@ -1508,14 +1513,16 @@ let _lastPolyTap   = { id: null, t: 0 }; // double-tap detection for parcel rena
 let _snapTarget         = null;   // LatLng | null — nearest vertex within snap radius while drawing
 let _snapMarker         = null;   // circleMarker shown at the snap target
 let _snapType           = 'vertex'; // 'vertex' | 'intersection'
-let _pendingEdgeClick = null; // { id, edgeIdx, midLatLng } — set when edge midpoint is clicked
-let _edgeOpState      = null; // { parcelId, edgeIdx, mode, highlightLine } — waiting for ref edge
+let _pendingEdgeClick       = null; // { id, edgeIdx, midLatLng } — set when edge midpoint is clicked
+let _pendingRoadVertexClick = null; // { id, idx } — set when road vertex is short-clicked
+let _edgeOpState            = null; // { parcelId, edgeIdx, mode, highlightLine } — waiting for ref edge
 
 // ── Stage 3: map click / dblclick / mousemove ─────────────────────────────────
 
 function onMapClick(e) {
   if (_justDragged) { _justDragged = false; return; }
   if (document.getElementById('edge-popup').classList.contains('open')) { closeEdgePopup(); return; }
+  if (document.getElementById('road-vertex-popup').classList.contains('open')) { closeRoadVertexPopup(); return; }
   if (_edgeOpState) {
     const ref = findNearestEdge(e.latlng);
     if (ref) applyEdgeOp(ref.parcelId, ref.edgeIdx); else cancelEdgeOp();
@@ -1968,6 +1975,7 @@ function applyRoadBuffer(verts, name, widthM) {
 
 function handlePolygonClick(id, e) {
   if (document.getElementById('edge-popup').classList.contains('open')) { closeEdgePopup(); return; }
+  if (document.getElementById('road-vertex-popup').classList.contains('open')) { closeRoadVertexPopup(); return; }
   if (_edgeOpState) {
     const ref = findNearestEdge(e.latlng);
     if (ref) applyEdgeOp(ref.parcelId, ref.edgeIdx);
@@ -2161,7 +2169,7 @@ function startParcelDrag(id, downEvent) {
   if (STATE.activeTool !== 'select') return;
   const p = STATE.editableParcels[id];
   if (!p) return;
-  closeEdgePopup();
+  closeEdgePopup(); closeRoadVertexPopup();
 
   const _container   = map.getContainer();
   const rect         = _container.getBoundingClientRect();
@@ -2250,7 +2258,7 @@ function startParcelDrag(id, downEvent) {
 // ── Stage 3: vertex drag ──────────────────────────────────────────────────────
 
 function startVertexDrag(id, idx, marker) {
-  closeEdgePopup();
+  closeEdgePopup(); closeRoadVertexPopup();
   dragState = { id, idx };
   map.dragging.disable();
   let _moved = false;
@@ -2406,7 +2414,7 @@ function startEdgeDragOrInsert(id, edgeIdx, midLatLng, marker, downEvent) {
 // ── Stage 3: compound vertex / edge drag ─────────────────────────────────────
 
 function startCompoundVertexDrag(members, marker) {
-  closeEdgePopup();
+  closeEdgePopup(); closeRoadVertexPopup();
   const _container = map.getContainer();
   const rect = _container.getBoundingClientRect();
   const starts = members.map(({ id, idx }) => {
@@ -3582,14 +3590,14 @@ function renderRoadHandles(id) {
     div.addEventListener('mousedown', e => {
       e.stopPropagation(); e.preventDefault();
       map.dragging.disable();
-      closeEdgePopup();
-      startRoadVertexDrag(id, idx, div);
+      closeEdgePopup(); closeRoadVertexPopup();
+      startRoadVertexDrag(id, idx, div, e);
     });
     div.addEventListener('touchstart', e => {
       e.stopPropagation(); e.preventDefault();
       map.dragging.disable();
-      closeEdgePopup();
-      startRoadVertexDrag(id, idx, div);
+      closeEdgePopup(); closeRoadVertexPopup();
+      startRoadVertexDrag(id, idx, div, e);
     }, { passive: false });
     div.addEventListener('click', e => e.stopPropagation());
     addLongPressListener(div, () => {
@@ -3632,16 +3640,30 @@ function renderRoadHandles(id) {
   }
 }
 
-function startRoadVertexDrag(id, idx, marker) {
+function startRoadVertexDrag(id, idx, marker, downEvent) {
   const p = STATE.editableParcels[id];
   if (!p || !p.roadVerts) return;
+
+  // If waiting for a reference edge, treat this click as picking the nearest road polygon edge
+  if (_edgeOpState) {
+    const { clientX, clientY } = clientXY(downEvent);
+    const rect = map.getContainer().getBoundingClientRect();
+    const ll   = map.containerPointToLatLng(L.point(clientX - rect.left, clientY - rect.top));
+    const ref  = findNearestEdge(ll);
+    if (ref) applyEdgeOp(ref.parcelId, ref.edgeIdx); else cancelEdgeOp();
+    map.dragging.enable();
+    return;
+  }
+
   let _moved = false;
   const _container = map.getContainer();
+  const { clientX: _startX, clientY: _startY } = clientXY(downEvent);
 
   function onMove(e) {
+    const { clientX: _cx, clientY: _cy } = clientXY(e);
+    if (!_moved && Math.hypot(_cx - _startX, _cy - _startY) < 3) return;
     if (!_moved) { pushHistory(); _moved = true; }
     const rect  = _container.getBoundingClientRect();
-    const { clientX: _cx, clientY: _cy } = clientXY(e);
     const rawLL = map.containerPointToLatLng(L.point(_cx - rect.left, _cy - rect.top));
     p.roadVerts[idx] = rawLL;
     if (marker && marker.parentNode) {
@@ -3666,11 +3688,13 @@ function startRoadVertexDrag(id, idx, marker) {
     document.removeEventListener('touchmove', onMove);
     document.removeEventListener('touchend',  onUp);
     map.dragging.enable();
-    if (_moved) {
-      _justDragged = true;
-      setTimeout(() => { _justDragged = false; }, 50);
-      if (STATE.selectedIds.has(id)) renderVertexHandles(id);
+    if (!_moved) {
+      if (downEvent) showRoadVertexPopup(id, idx, _startX, _startY);
+      return;
     }
+    _justDragged = true;
+    setTimeout(() => { _justDragged = false; }, 50);
+    if (STATE.selectedIds.has(id)) renderRoadHandles(id);
     computeStats();
   }
 
@@ -3694,6 +3718,48 @@ function startRoadMidpointInsert(id, insertIdx, midLatLng) {
 }
 
 // ── Stage 3.6: edge alignment (parallel / perpendicular) ──────────────────────
+
+function showRoadVertexPopup(id, idx, clientX, clientY) {
+  _pendingRoadVertexClick = { id, idx };
+  const popup = document.getElementById('road-vertex-popup');
+  popup.style.left = clientX + 'px';
+  popup.style.top  = (clientY + 4) + 'px';
+  popup.classList.add('open');
+  setTimeout(() => {
+    const r = popup.getBoundingClientRect();
+    if (r.right  > window.innerWidth)  popup.style.left = (clientX - r.width)  + 'px';
+    if (r.bottom > window.innerHeight) popup.style.top  = (clientY - r.height) + 'px';
+  }, 0);
+}
+
+function closeRoadVertexPopup() {
+  document.getElementById('road-vertex-popup').classList.remove('open');
+  _pendingRoadVertexClick = null;
+}
+
+function startRoadVertexOp(mode) {
+  if (!_pendingRoadVertexClick) { closeRoadVertexPopup(); return; }
+  const { id, idx } = _pendingRoadVertexClick;
+  closeRoadVertexPopup();
+  const p = STATE.editableParcels[id];
+  if (!p || !p.roadVerts || p.roadVerts.length < 2) return;
+
+  const n       = p.roadVerts.length;
+  const segAIdx = idx < n - 1 ? idx : idx - 1;
+  const segBIdx = segAIdx + 1;
+
+  const highlightLine = L.polyline([p.roadVerts[segAIdx], p.roadVerts[segBIdx]], {
+    color: '#e74c3c', weight: 4, interactive: false
+  }).addTo(map);
+
+  _edgeOpState = { isRoad: true, parcelId: id, roadSegAIdx: segAIdx, roadSegBIdx: segBIdx, mode, highlightLine };
+
+  const hint = document.getElementById('edge-op-hint');
+  hint.textContent = mode === 'parallel'
+    ? 'Click any edge to align road segment parallel to it  ·  Esc to cancel'
+    : 'Click any edge to align road segment perpendicular to it  ·  Esc to cancel';
+  hint.classList.add('visible');
+}
 
 function showEdgePopup(id, edgeIdx, midLatLng, clientX, clientY) {
   _pendingEdgeClick = { id, edgeIdx, midLatLng };
@@ -3750,46 +3816,58 @@ function cancelEdgeOp() {
 
 function applyEdgeOp(refParcelId, refEdgeIdx) {
   if (!_edgeOpState) return;
-  const { parcelId, edgeIdx, mode } = _edgeOpState;
+  const { isRoad, parcelId, edgeIdx, roadSegAIdx, roadSegBIdx, mode } = _edgeOpState;
   cancelEdgeOp();
 
   const p    = STATE.editableParcels[parcelId];
   const refP = STATE.editableParcels[refParcelId];
   if (!p || !refP) return;
 
-  const n    = p.latlngs.length;
-  const refN = refP.latlngs.length;
-  const idxA    = edgeIdx % n;
-  const idxB    = (edgeIdx + 1) % n;
-  const idxPrev = (idxA - 1 + n) % n;
-  const idxNext = (idxB + 1) % n;
-
-  // Work in lng/lat as flat 2-D coords (accurate for small local regions)
-  const A    = { x: p.latlngs[idxA].lng,    y: p.latlngs[idxA].lat };
-  const B    = { x: p.latlngs[idxB].lng,    y: p.latlngs[idxB].lat };
-  const Prev = { x: p.latlngs[idxPrev].lng, y: p.latlngs[idxPrev].lat };
-  const Next = { x: p.latlngs[idxNext].lng, y: p.latlngs[idxNext].lat };
-
+  // Derive direction from the reference edge (works in lng/lat flat-2D coords)
+  const refN  = refP.latlngs.length;
   const rIdxA = refEdgeIdx % refN;
   const rIdxB = (refEdgeIdx + 1) % refN;
   const rA = { x: refP.latlngs[rIdxA].lng, y: refP.latlngs[rIdxA].lat };
   const rB = { x: refP.latlngs[rIdxB].lng, y: refP.latlngs[rIdxB].lat };
-
-  // Compute new direction for the target edge
   let dir = { x: rB.x - rA.x, y: rB.y - rA.y };
   const dlen = Math.hypot(dir.x, dir.y);
   if (dlen < 1e-14) return;
   dir = { x: dir.x / dlen, y: dir.y / dlen };
   if (mode === 'perpendicular') dir = { x: -dir.y, y: dir.x };
 
-  // New edge line passes through the midpoint of the original edge
-  const M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+  if (isRoad) {
+    // Rotate the road centerline segment around its midpoint
+    const vA = p.roadVerts[roadSegAIdx];
+    const vB = p.roadVerts[roadSegBIdx];
+    const M  = { x: (vA.lng + vB.lng) / 2, y: (vA.lat + vB.lat) / 2 };
+    const halfLen = Math.hypot(vB.lng - vA.lng, vB.lat - vA.lat) / 2;
+    pushHistory();
+    p.roadVerts[roadSegAIdx] = L.latLng(M.y - halfLen * dir.y, M.x - halfLen * dir.x);
+    p.roadVerts[roadSegBIdx] = L.latLng(M.y + halfLen * dir.y, M.x + halfLen * dir.x);
+    rebufferRoad(p);
+    refreshEditableLayer();
+    if (STATE.selectedIds.has(parcelId)) renderRoadHandles(parcelId);
+    computeStats();
+    return;
+  }
 
-  // Adjacent edge directions (kept intact; only their endpoints move)
-  const dPrev = { x: A.x - Prev.x, y: A.y - Prev.y }; // Prev → A
-  const dNext = { x: Next.x - B.x, y: Next.y - B.y }; // B → Next
+  // Polygon edge alignment
+  const n       = p.latlngs.length;
+  const idxA    = edgeIdx % n;
+  const idxB    = (edgeIdx + 1) % n;
+  const idxPrev = (idxA - 1 + n) % n;
+  const idxNext = (idxB + 1) % n;
 
-  // New vertex positions = intersection of new edge line with each adjacent edge line
+  const A    = { x: p.latlngs[idxA].lng,    y: p.latlngs[idxA].lat };
+  const B    = { x: p.latlngs[idxB].lng,    y: p.latlngs[idxB].lat };
+  const Prev = { x: p.latlngs[idxPrev].lng, y: p.latlngs[idxPrev].lat };
+  const Next = { x: p.latlngs[idxNext].lng, y: p.latlngs[idxNext].lat };
+
+  // New edge passes through midpoint; adjacent edge directions kept intact
+  const M     = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+  const dPrev = { x: A.x - Prev.x, y: A.y - Prev.y };
+  const dNext = { x: Next.x - B.x, y: Next.y - B.y };
+
   const newA = lineIntersect(M, dir, Prev, dPrev);
   const newB = lineIntersect(M, dir, B,    dNext);
   if (!newA || !newB) return; // adjacent edges parallel to new direction — no solution
