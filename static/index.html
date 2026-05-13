@@ -209,6 +209,14 @@
     .vhandle-m.compound     { border-color: #7c3aed; background: #c4b5fd; }
     .vhandle-v.compound-sel { background: #7c3aed; border-color: #4c1d95; }
     .vhandle-m.compound-sel { background: #7c3aed; border-color: #4c1d95; }
+    .vhandle-rotate {
+      position: absolute; width: 20px; height: 20px; margin: -10px 0 0 -10px;
+      background: white; border: 2px solid #2980b9; border-radius: 50%;
+      cursor: grab; pointer-events: all; box-sizing: border-box;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; line-height: 1; color: #2980b9; user-select: none;
+    }
+    .vhandle-rotate:hover { background: #ebf5fb; }
 
     /* ── Close-polygon pulse marker ── */
     @keyframes close-pulse {
@@ -595,6 +603,9 @@
       <p>With the road network in place, reshape the private parcels so each owner receives a well-proportioned plot that is accessible from a road. The goal is a layout where every parcel has good street frontage, no awkward shapes, and where the reduction in area is shared as equitably as possible across all owners.</p>
       <ul>
         <li><strong>Select / Reshape</strong> — click a parcel to select it, then drag its vertices or edges to reshape it. Hold <em>Shift</em> while dragging an edge to keep it perpendicular, which helps produce regular rectangular plots. Shared vertices between adjacent parcels are highlighted in purple; <strong>double-click</strong> a shared vertex or edge to move it together with all neighbouring boundaries simultaneously, keeping the layout gap-free.</li>
+        <li><strong>Edge alignment</strong> — right-click (or long-press on mobile) any polygon edge to open a context menu with <em>Make parallel to…</em> and <em>Make perpendicular to…</em>. After selecting one, click any reference edge on the map to rotate the selected edge to match. You can also insert a new vertex at the clicked point via <em>Insert vertex here</em>.</li>
+        <li><strong>Road vertex alignment</strong> — short-click a road centreline vertex to open a similar menu. Choose <em>Make parallel to…</em> or <em>Make perpendicular to…</em>, then click a reference edge to rotate the adjacent road segment around its midpoint. This is the fastest way to align road geometry to nearby parcel boundaries.</li>
+        <li><strong>Align selected with…</strong> — select one or more parcels, then click the toolbar button and pick any reference edge. The selected parcels are rectangularized and reoriented to match that edge's direction.</li>
         <li><strong>Resize selected parcels</strong> — select one or more parcels and type a percentage to shrink or grow them uniformly. Use a negative value (e.g. −15) to apply the land contribution reduction across a group of parcels in one step.</li>
         <li><strong>Clip spillover</strong> — trims any parcel area that falls outside the project boundary, ensuring no new parcel extends beyond the pooled land area.</li>
         <li><strong>Delete polygon</strong> — click a parcel to remove it entirely if it is no longer needed in the new layout.</li>
@@ -2174,6 +2185,28 @@ function renderVertexHandles(id) {
       });
     }
   }
+
+  // ── Rotate handle — positioned above the bounding box ──
+  const pts  = p.latlngs.map(ll => map.latLngToContainerPoint(ll));
+  const minX = Math.min(...pts.map(pt => pt.x));
+  const maxX = Math.max(...pts.map(pt => pt.x));
+  const minY = Math.min(...pts.map(pt => pt.y));
+  const rotDiv = document.createElement('div');
+  rotDiv.className = 'vhandle-rotate';
+  rotDiv.style.left = ((minX + maxX) / 2) + 'px';
+  rotDiv.style.top  = (minY - 26) + 'px';
+  rotDiv.textContent = '↻';
+  rotDiv.title = 'Drag to rotate';
+  rotDiv.addEventListener('mousedown', e => {
+    e.stopPropagation(); e.preventDefault();
+    startRotateDrag(id, e.clientX, e.clientY);
+  });
+  rotDiv.addEventListener('touchstart', e => {
+    e.stopPropagation(); e.preventDefault();
+    startRotateDrag(id, e.touches[0].clientX, e.touches[0].clientY);
+  }, { passive: false });
+  rotDiv.addEventListener('click', e => e.stopPropagation());
+  container.appendChild(rotDiv);
 }
 
 // ── Stage 3: parcel body drag ─────────────────────────────────────────────────
@@ -2260,6 +2293,70 @@ function startParcelDrag(id, downEvent) {
       renderVertexHandles(id);
     }
     computeStats();
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup',   onUp);
+  document.addEventListener('touchmove', onMove, { passive: false });
+  document.addEventListener('touchend',  onUp);
+}
+
+// ── Stage 3: rotate drag ──────────────────────────────────────────────────────
+
+function startRotateDrag(id, startClientX, startClientY) {
+  const p = STATE.editableParcels[id];
+  if (!p) return;
+  closeEdgePopup(); closeRoadVertexPopup();
+  map.dragging.disable();
+
+  const _container = map.getContainer();
+  const rect = _container.getBoundingClientRect();
+
+  // Capture vertices in screen space and compute centroid
+  const snapPts = p.latlngs.map(ll => {
+    const pt = map.latLngToContainerPoint(ll);
+    return { x: pt.x, y: pt.y };
+  });
+  const cx = snapPts.reduce((s, pt) => s + pt.x, 0) / snapPts.length;
+  const cy = snapPts.reduce((s, pt) => s + pt.y, 0) / snapPts.length;
+
+  const startAngle = Math.atan2(
+    startClientY - rect.top  - cy,
+    startClientX - rect.left - cx
+  );
+
+  let _pushed = false;
+
+  function onMove(e) {
+    const { clientX, clientY } = clientXY(e);
+    const mx = clientX - rect.left;
+    const my = clientY - rect.top;
+    if (!_pushed && Math.hypot(mx - (startClientX - rect.left), my - (startClientY - rect.top)) < 3) return;
+    if (!_pushed) { pushHistory(); _pushed = true; }
+
+    const angle = Math.atan2(my - cy, mx - cx);
+    const delta = angle - startAngle;
+    const cos = Math.cos(delta);
+    const sin = Math.sin(delta);
+
+    p.latlngs = snapPts.map(pt => {
+      const dx = pt.x - cx;
+      const dy = pt.y - cy;
+      return map.containerPointToLatLng(
+        L.point(dx * cos - dy * sin + cx, dx * sin + dy * cos + cy)
+      );
+    });
+    refreshEditableLayer();
+    computeStats();
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup',   onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend',  onUp);
+    map.dragging.enable();
+    renderVertexHandles(id);
   }
 
   document.addEventListener('mousemove', onMove);
