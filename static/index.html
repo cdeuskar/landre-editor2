@@ -514,6 +514,7 @@
     <input type="number" id="shrink-pct" value="-10" min="-99" max="999" step="1">
   </div>
   <button class="tool-btn" onclick="shrinkSelected()">↕ Resize selected parcels</button>
+  <button class="tool-btn" id="btn-align-polys" onclick="startAlignPolygons()">☐ Align selected with…</button>
   <button class="tool-btn" onclick="clipOverlaps()"><svg width="15" height="12" viewBox="0 0 15 12" style="vertical-align:middle;margin-right:4px" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.5" y="0.5" width="8" height="7"/><rect x="6" y="3.5" width="8" height="7"/><rect x="6" y="3.5" width="2.5" height="4" fill="#ccc" stroke="#ccc" stroke-width="1"/></svg>Clip overlaps</button>
   <button class="tool-btn" onclick="clipSpillover()"><svg width="16" height="12" viewBox="0 0 16 12" style="vertical-align:middle;margin-right:4px" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.5" y="0.5" width="11" height="11"/><path d="M2,2 L2,10 L9,10 L9,8 L11.5,7 L11.5,5 L9,4 L9,2 Z"/><path d="M11.5,7 L14,6 L11.5,5" stroke="#ccc" stroke-width="1.2"/></svg>Clip spillover</button>
 
@@ -841,7 +842,7 @@ function initMap() {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) { e.preventDefault(); redo(); }
     if (e.key === 'Escape') {
       const _tracingWithVerts = STATE.tracingMode && STATE.drawVerts.length > 0;
-      cancelDraw(); cancelEdgeOp(); closeEdgePopup(); closeRoadVertexPopup(); cancelRuler();
+      cancelDraw(); cancelEdgeOp(); cancelAlignPolygons(); closeEdgePopup(); closeRoadVertexPopup(); cancelRuler();
       if (STATE.tracingMode && !_tracingWithVerts) doneTracing();
       if (STATE.activeTool === 'edit-orig' && STATE.selectedOrigId) {
         STATE.selectedOrigId = null; _origVertexMarkers = [];
@@ -893,6 +894,7 @@ function activateTool(name) {
   // Cancel any active draw / edge op / ruler first
   cancelDraw();
   cancelEdgeOp();
+  cancelAlignPolygons();
   cancelRuler();
   closeEdgePopup();
   closeRoadVertexPopup();
@@ -1516,6 +1518,7 @@ let _snapType           = 'vertex'; // 'vertex' | 'intersection'
 let _pendingEdgeClick       = null; // { id, edgeIdx, midLatLng } — set when edge midpoint is clicked
 let _pendingRoadVertexClick = null; // { id, idx } — set when road vertex is short-clicked
 let _edgeOpState            = null; // { parcelId, edgeIdx, mode, highlightLine } — waiting for ref edge
+let _alignPolysState        = false; // true when waiting for a reference edge to rectangularize selected polygons
 
 // ── Stage 3: map click / dblclick / mousemove ─────────────────────────────────
 
@@ -1526,6 +1529,11 @@ function onMapClick(e) {
   if (_edgeOpState) {
     const ref = findNearestEdge(e.latlng);
     if (ref) applyEdgeOp(ref.parcelId, ref.edgeIdx); else cancelEdgeOp();
+    return;
+  }
+  if (_alignPolysState) {
+    const dir = findNearestEdgeDir(e.latlng);
+    if (dir) applyAlignPolygons(dir); else cancelAlignPolygons();
     return;
   }
   if (STATE.activeTool === 'ruler') {
@@ -1979,6 +1987,11 @@ function handlePolygonClick(id, e) {
   if (_edgeOpState) {
     const ref = findNearestEdge(e.latlng);
     if (ref) applyEdgeOp(ref.parcelId, ref.edgeIdx);
+    return;
+  }
+  if (_alignPolysState) {
+    const dir = findNearestEdgeDir(e.latlng);
+    if (dir) applyAlignPolygons(dir); else cancelAlignPolygons();
     return;
   }
   if (STATE.activeTool === 'select') {
@@ -3913,6 +3926,123 @@ function ptSegDist(p, a, b) {
   if (len2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
   const t = Math.max(0, Math.min(1, ((p.x - a.x) * abx + (p.y - a.y) * aby) / len2));
   return Math.hypot(p.x - (a.x + t * abx), p.y - (a.y + t * aby));
+}
+
+// ── Align selected polygons (rectangularize to a reference edge) ─────────────
+
+// Like findNearestEdge but checks both editable and original parcels, and returns
+// the normalised direction vector of the closest edge rather than parcel/edge IDs.
+function findNearestEdgeDir(latlng) {
+  const pt = map.latLngToContainerPoint(latlng);
+  let bestDir = null, bestDist = Infinity;
+
+  function checkSeg(llA, llB) {
+    const a = map.latLngToContainerPoint(llA);
+    const b = map.latLngToContainerPoint(llB);
+    const d = ptSegDist(pt, a, b);
+    if (d < bestDist) {
+      bestDist = d;
+      bestDir = { x: llB.lng - llA.lng, y: llB.lat - llA.lat };
+    }
+  }
+
+  Object.values(STATE.editableParcels).forEach(p => {
+    const n = p.latlngs.length;
+    for (let i = 0; i < n; i++) checkSeg(p.latlngs[i], p.latlngs[(i + 1) % n]);
+  });
+
+  STATE.originalFeatures.forEach(o => {
+    const coords = o.geojson.geometry.coordinates[0];
+    const n = coords.length - 1;
+    for (let i = 0; i < n; i++)
+      checkSeg(L.latLng(coords[i][1], coords[i][0]), L.latLng(coords[i+1][1], coords[i+1][0]));
+  });
+
+  if (bestDist > 20 || !bestDir) return null;
+  const len = Math.hypot(bestDir.x, bestDir.y);
+  if (len < 1e-14) return null;
+  return { x: bestDir.x / len, y: bestDir.y / len };
+}
+
+function startAlignPolygons() {
+  if (STATE.selectedIds.size === 0) return;
+  _alignPolysState = true;
+  document.getElementById('btn-align-polys').classList.add('active');
+  const hint = document.getElementById('edge-op-hint');
+  hint.textContent = 'Click any edge to align selected polygons to it  ·  Esc to cancel';
+  hint.classList.add('visible');
+}
+
+function cancelAlignPolygons() {
+  if (!_alignPolysState) return;
+  _alignPolysState = false;
+  document.getElementById('btn-align-polys').classList.remove('active');
+  document.getElementById('edge-op-hint').classList.remove('visible');
+}
+
+function applyAlignPolygons(dir) {
+  cancelAlignPolygons();
+  if (STATE.selectedIds.size === 0) return;
+  pushHistory();
+  STATE.selectedIds.forEach(id => {
+    const p = STATE.editableParcels[id];
+    if (!p || p.roadVerts) return; // skip road polygons
+    p.latlngs = rectifyPolygon(p.latlngs, dir);
+  });
+  refreshEditableLayer();
+  STATE.vertexLG.clearLayers();
+  document.getElementById('vhandles').innerHTML = '';
+  if (STATE.selectedIds.size === 1) renderVertexHandles(STATE.lastSelectedId);
+  computeStats();
+}
+
+// Replace the given polygon vertices with a rectangle that has the same centroid
+// and the same area (measured in lat/lng flat-2D), with edges parallel / perpendicular
+// to the given unit direction vector dir = {x, y} (lng, lat components).
+function rectifyPolygon(latlngs, dir) {
+  const pts = latlngs.map(ll => ({ x: ll.lng, y: ll.lat }));
+  const n = pts.length;
+  if (n < 3) return latlngs;
+
+  // Polygon centroid and signed area via shoelace
+  let areaSum = 0, cx = 0, cy = 0;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const cross = pts[i].x * pts[j].y - pts[j].x * pts[i].y;
+    areaSum += cross;
+    cx += (pts[i].x + pts[j].x) * cross;
+    cy += (pts[i].y + pts[j].y) * cross;
+  }
+  const signedArea = areaSum / 2;
+  if (Math.abs(signedArea) < 1e-20) return latlngs;
+  cx /= 6 * signedArea;
+  cy /= 6 * signedArea;
+  const origArea = Math.abs(signedArea);
+
+  // Local axes: u = dir (parallel), v = perp
+  const ux = dir.x, uy = dir.y;
+  const vx = -uy,   vy = ux;
+
+  // Project vertices onto local axes relative to centroid
+  const us = pts.map(p => (p.x - cx) * ux + (p.y - cy) * uy);
+  const vs = pts.map(p => (p.x - cx) * vx + (p.y - cy) * vy);
+
+  const W = Math.max(...us) - Math.min(...us);
+  const H = Math.max(...vs) - Math.min(...vs);
+  if (W < 1e-14 || H < 1e-14) return latlngs;
+
+  // Scale bounding-box dims to preserve original area
+  const scale = Math.sqrt(origArea / (W * H));
+  const hw = W * scale / 2;  // half-width along u
+  const hh = H * scale / 2;  // half-height along v
+
+  // Build CCW rectangle centered at (cx, cy)
+  return [
+    [-hw, -hh],
+    [ hw, -hh],
+    [ hw,  hh],
+    [-hw,  hh],
+  ].map(([a, b]) => L.latLng(cy + a * uy + b * vy, cx + a * ux + b * vx));
 }
 
 // ── Edit originals mode ──────────────────────────────────────────────────────
