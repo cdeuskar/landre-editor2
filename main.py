@@ -2,8 +2,9 @@ import os
 import re
 import json
 import xml.etree.ElementTree as ET
-from fastapi import FastAPI, Request, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+import httpx
+from fastapi import FastAPI, Request, UploadFile, File, Query
+from fastapi.responses import HTMLResponse, RedirectResponse, Response, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
@@ -29,6 +30,14 @@ async def index(request: Request):
 @app.get("/mobile")
 async def mobile():
     return _serve_index()
+
+
+@app.get("/api/elevation")
+async def elevation_proxy(locations: str = Query(...)):
+    url = f"https://api.opentopodata.org/v1/srtm30m?locations={locations}"
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(url)
+    return JSONResponse(content=r.json(), status_code=r.status_code)
 
 
 @app.post("/api/upload/kml")

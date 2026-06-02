@@ -59,7 +59,7 @@
       display: flex; flex-direction: column; overflow: hidden;
     }
     #side-panel.collapsed { width: 36px; min-width: 36px; }
-    #side-panel.collapsed #panel-title { display: none; }
+    #side-panel.collapsed #panel-tabs { display: none; }
     #side-panel.collapsed #panel-header { justify-content: center; padding: 9px 4px; }
     #panel-header {
       background: #2c3e50; color: white; padding: 9px 12px;
@@ -305,49 +305,59 @@
     #draw-finish-btn.visible { display: block; }
 
     /* ── User guide overlay ── */
-    #guide-overlay {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,0,0,.55); z-index: 10000;
-      align-items: center; justify-content: center;
+    /* ── Panel tabs ── */
+    #panel-tabs { display: flex; gap: 2px; flex: 1; margin-right: 6px; }
+    .panel-tab {
+      background: rgba(255,255,255,.12); border: none; border-radius: 3px;
+      color: rgba(255,255,255,.7); font-size: 12px; font-weight: 600;
+      padding: 4px 12px; cursor: pointer; transition: background .15s, color .15s;
+      white-space: nowrap;
     }
-    #guide-overlay.open { display: flex; }
-    #guide-box {
-      background: #fff; border-radius: 6px;
-      box-shadow: 0 8px 40px rgba(0,0,0,.35);
-      width: 90vw; max-width: 860px;
-      height: 90vh; display: flex; flex-direction: column;
-      overflow: hidden;
+    .panel-tab:hover { background: rgba(255,255,255,.22); color: #fff; }
+    .panel-tab.active { background: rgba(255,255,255,.26); color: #fff; }
+
+    /* ── Guide content (inside panel tab) ── */
+    #panel-guide {
+      display: none; font-size: 13px; line-height: 1.6; color: #222;
     }
-    #guide-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 14px 20px; border-bottom: 1px solid #e0e0e0;
-      background: #2c3e50; color: #fff; flex-shrink: 0;
-    }
-    #guide-header h2 { margin: 0; font-size: 16px; font-weight: 700; }
-    #guide-close {
-      background: none; border: none; color: #fff; font-size: 22px;
-      cursor: pointer; line-height: 1; padding: 0 2px;
-    }
-    #guide-close:hover { color: #f0c040; }
-    #guide-body {
-      overflow-y: auto; padding: 22px 28px; flex: 1;
-      font-size: 13.5px; line-height: 1.65; color: #222;
-    }
-    #guide-body h3 {
-      font-size: 13px; text-transform: uppercase; letter-spacing: .05em;
-      color: #2c3e50; margin: 20px 0 6px; border-bottom: 1px solid #e8e8e8;
+    #panel-guide h3 {
+      font-size: 12px; text-transform: uppercase; letter-spacing: .05em;
+      color: #2c3e50; margin: 18px 0 6px; border-bottom: 1px solid #e8e8e8;
       padding-bottom: 4px;
     }
-    #guide-body h3:first-child { margin-top: 0; }
-    #guide-body p  { margin: 0 0 10px; }
-    #guide-body ul { margin: 0 0 10px; padding-left: 20px; }
-    #guide-body li { margin-bottom: 5px; }
-    #guide-body .tip {
+    #panel-guide h3:first-child { margin-top: 2px; }
+    #panel-guide p  { margin: 0 0 9px; }
+    #panel-guide ul, #panel-guide ol { margin: 0 0 9px; padding-left: 18px; }
+    #panel-guide li { margin-bottom: 4px; }
+    #panel-guide .tip {
       background: #eef6ff; border-left: 4px solid #2980b9;
-      border-radius: 0 4px 4px 0; padding: 10px 14px;
-      margin: 12px 0; font-size: 13px;
+      border-radius: 0 4px 4px 0; padding: 9px 12px;
+      margin: 10px 0; font-size: 12.5px;
     }
-    #guide-body .tip strong { color: #1a5276; }
+    #panel-guide .tip strong { color: #1a5276; }
+    #panel-guide details { margin: 4px 0 8px; }
+    #panel-guide summary {
+      font-size: 12px; font-weight: 600; color: #2777b8;
+      cursor: pointer; padding: 3px 0; user-select: none;
+      list-style: none; display: flex; align-items: center; gap: 4px;
+    }
+    #panel-guide summary::-webkit-details-marker { display: none; }
+    #panel-guide summary .arr { font-size: 9px; transition: transform .15s; display: inline-block; }
+    #panel-guide details[open] summary .arr { transform: rotate(90deg); }
+    #panel-guide details > ul, #panel-guide details > p { margin-top: 5px; }
+    #panel-guide figure { display: inline-block; text-align: center; margin: 0; }
+    #panel-guide figcaption { font-size: 11px; color: #666; margin-top: 3px; }
+    .qs-box {
+      background: #f0faf2; border: 1px solid #27ae60; border-radius: 5px;
+      padding: 10px 12px; margin-bottom: 14px;
+    }
+    .qs-box h4 {
+      margin: 0 0 6px; font-size: 11px; color: #1a7a40;
+      text-transform: uppercase; letter-spacing: .05em; font-weight: 700;
+    }
+    .qs-box ol { margin: 0; padding-left: 18px; }
+    .qs-box li { margin-bottom: 3px; font-size: 12.5px; }
+    .qs-note { margin-top: 7px; font-size: 11.5px; color: #555; font-style: italic; }
 
     /* ── Gradient legend ── */
     #gradient-legend {
@@ -378,6 +388,36 @@
     #gradient-legend.legend-collapsed .legend-labels { display: none; }
     #gradient-legend.legend-collapsed .legend-title { margin-bottom: 0; }
     #legend-title .legend-caret { display: none; margin-left: 4px; font-style: normal; }
+
+    /* ── Grade overlay legend ── */
+    #grade-legend {
+      display: none;
+      position: absolute; bottom: 75px; left: 10px; z-index: 1001;
+      background: rgba(255,255,255,0.93); border: 1px solid #bbb; border-radius: 6px;
+      padding: 6px 10px; min-width: 160px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    }
+    #grade-legend.visible { display: block; }
+    #grade-legend .legend-title {
+      font-weight: 700; font-size: 10px; color: #2c3e50;
+      text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px;
+    }
+    .grade-legend-row {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 10px; color: #333; margin-bottom: 3px;
+    }
+    .grade-swatch { width: 28px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+
+    /* ── Grade status toast ── */
+    #grade-status {
+      display: none;
+      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+      z-index: 2100;
+      background: rgba(0,0,0,0.75); color: #fff;
+      padding: 7px 18px; border-radius: 20px; font-size: 13px;
+      white-space: nowrap; pointer-events: none;
+    }
+    #grade-status.visible { display: block; }
 
     /* ══ Mobile menu/stats overlay buttons (hidden on desktop) ════════════ */
     #mobile-menu-btn, #mobile-stats-card, #menu-backdrop { display: none; }
@@ -525,6 +565,8 @@
   <button class="tool-btn" id="btn-align-polys" onclick="startAlignPolygons()">☐ Align selected with…</button>
   <button class="tool-btn" onclick="clipOverlaps()"><svg width="15" height="12" viewBox="0 0 15 12" style="vertical-align:middle;margin-right:4px" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.5" y="0.5" width="8" height="7"/><rect x="6" y="3.5" width="8" height="7"/><rect x="6" y="3.5" width="2.5" height="4" fill="#ccc" stroke="#ccc" stroke-width="1"/></svg>Clip overlaps</button>
   <button class="tool-btn" onclick="clipSpillover()"><svg width="16" height="12" viewBox="0 0 16 12" style="vertical-align:middle;margin-right:4px" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.5" y="0.5" width="11" height="11"/><path d="M2,2 L2,10 L9,10 L9,8 L11.5,7 L11.5,5 L9,4 L9,2 Z"/><path d="M11.5,7 L14,6 L11.5,5" stroke="#ccc" stroke-width="1.2"/></svg>Clip spillover</button>
+  <button class="tool-btn" id="btn-check-grades" onclick="checkRoadGrades()">▲ Check road grades</button>
+  <button class="tool-btn" id="btn-clear-grades" onclick="clearGradeOverlay()" style="display:none">✕ Clear grade overlay</button>
 
   <hr class="tool-sep">
   <button class="tool-btn" id="btn-tog-orig"  onclick="toggleOriginals()">👁 Hide originals</button>
@@ -554,88 +596,18 @@
   </div>
 </div>
 
-<!-- ── User guide overlay ───────────────────────────────────────────────── -->
-<div id="guide-overlay" onclick="closeGuide(event)">
-  <div id="guide-box">
-    <div id="guide-header">
-      <h2>LandRe — User Guide</h2>
-      <button id="guide-close" onclick="closeGuideBtn()">✕</button>
-    </div>
-    <div id="guide-body">
-
-      <h3>What is LandRe?</h3>
-      <p>LandRe is a planning tool for designing land readjustment layouts. Land readjustment is a planning technique where a group of landowners pool their parcels, the land is collectively replanned — typically to add roads, public space, and serviced plots — and the reorganised parcels are redistributed back to the original owners, each receiving a smaller but more valuable and better-connected plot.</p>
-      <p>LandRe lets you experiment with different configurations and explore options before committing to a design, making it easier to facilitate discussions with landowners and test ideas in real time.</p>
-      <p><strong>Important:</strong> The outputs produced by this app are intended for planning exploration and discussion only. They are <em>not</em> official site plans or survey-grade documents.</p>
-
-      <div style="display:flex; align-items:center; gap:12px; margin:12px 0 18px;">
-        <img src="/static/User-Guide-before.png" alt="Before land readjustment" style="height:220px; width:auto; border-radius:4px; border:1px solid #ddd;">
-        <div style="font-size:28px; color:#555; flex-shrink:0;">→</div>
-        <img src="/static/User-Guide-after.png" alt="After land readjustment" style="height:220px; width:auto; border-radius:4px; border:1px solid #ddd;">
-      </div>
-
-      <h3>Step 1 — Load the original parcels</h3>
-      <p>The starting point for any land readjustment project is an accurate record of who owns what. Begin by loading the existing parcel boundaries into LandRe so the app can track how each owner's land changes through the redesign.</p>
-      <ul>
-        <li><strong>Upload KML</strong> — import a KML file containing the original parcel boundaries. This is the recommended approach if you already have GIS data for the area.</li>
-        <li><strong>Trace parcels</strong> — draw parcels directly on the satellite map by clicking to place vertices. Click the first vertex again (or press <em>Done tracing</em>) to close each polygon. Use this when no digital boundary data is available.</li>
-      </ul>
-      <p>Once loaded, the original parcels appear on the map as a fixed reference layer — they do not move when you edit. Use <strong>Edit originals</strong> if you need to correct any source boundaries before proceeding.</p>
-
-      <h3>Step 2 — Set the project parameters</h3>
-      <p>Land readjustment requires every participating landowner to contribute a portion of their land for roads and public space. Before you start redesigning, use the <strong>Parameters</strong> panel on the right to define the fairness thresholds for your project:</p>
-      <ul>
-        <li><strong>Max reduction (%)</strong> — the maximum percentage by which any individual parcel may be reduced. This protects owners from carrying a disproportionate share of the land contribution. A typical range is 20–40%.</li>
-        <li><strong>Min overlap w/ orig (%)</strong> — the minimum share of a new parcel that must sit within its original boundary. Higher values keep owners close to their original land, which is often important for social acceptance.</li>
-        <li><strong>Min size (m²)</strong> — the smallest permissible plot in the new layout. This ensures all redistributed parcels remain developable.</li>
-      </ul>
-      <p>The statistics table flags any parcel that violates these thresholds in real time as you design, so keep this panel visible while you work.</p>
-
-      <h3>Step 3 — Design the new road network and public space</h3>
-      <p>Roads and public open space are the core public benefit that justifies asking landowners to contribute land. Lay out the road network first, as it defines the structure that all new parcels will be organised around.</p>
-      <ul>
-        <li><strong>Draw road</strong> — trace a road centreline on the map. A dialog will ask for the road name and width (in metres); the app then generates the road polygon automatically. Place roads to improve connectivity, open up previously inaccessible land, and create a logical block structure.</li>
-        <li><strong>Draw polygon</strong> — use this to draw public open space, community facilities, or any other non-private parcel. Vertices snap to existing corners and road intersections automatically, making it easy to fit new elements cleanly into the layout.</li>
-        <li><strong>Clip overlaps</strong> — once roads and public space are drawn, run this to automatically trim any existing parcel that overlaps a road polygon, keeping the layers clean.</li>
-      </ul>
-
-      <h3>Step 4 — Readjust the private parcels</h3>
-      <p>With the road network in place, reshape the private parcels so each owner receives a well-proportioned plot that is accessible from a road. The goal is a layout where every parcel has good street frontage, no awkward shapes, and where the reduction in area is shared as equitably as possible across all owners.</p>
-      <ul>
-        <li><strong>Select / Reshape</strong> — click a parcel to select it, then drag its vertices or edges to reshape it. Hold <em>Shift</em> while dragging an edge to keep it perpendicular, which helps produce regular rectangular plots. Shared vertices between adjacent parcels are highlighted in purple; <strong>double-click</strong> a shared vertex or edge to move it together with all neighbouring boundaries simultaneously, keeping the layout gap-free.</li>
-        <li><strong>Edge alignment</strong> — right-click (or long-press on mobile) any polygon edge to open a context menu with <em>Make parallel to…</em> and <em>Make perpendicular to…</em>. After selecting one, click any reference edge on the map to rotate the selected edge to match. You can also insert a new vertex at the clicked point via <em>Insert vertex here</em>.</li>
-        <li><strong>Road vertex alignment</strong> — short-click a road centreline vertex to open a similar menu. Choose <em>Make parallel to…</em> or <em>Make perpendicular to…</em>, then click a reference edge to rotate the adjacent road segment around its midpoint. This is the fastest way to align road geometry to nearby parcel boundaries.</li>
-        <li><strong>Align selected with…</strong> — select one or more parcels, then click the toolbar button and pick any reference edge. The selected parcels are rectangularized and reoriented to match that edge's direction.</li>
-        <li><strong>Resize selected parcels</strong> — select one or more parcels and type a percentage to shrink or grow them uniformly. Use a negative value (e.g. −15) to apply the land contribution reduction across a group of parcels in one step.</li>
-        <li><strong>Clip spillover</strong> — trims any parcel area that falls outside the project boundary, ensuring no new parcel extends beyond the pooled land area.</li>
-        <li><strong>Delete polygon</strong> — click a parcel to remove it entirely if it is no longer needed in the new layout.</li>
-        <li><strong>Undo / Redo</strong> (Ctrl+Z / Ctrl+Y) — step back through your changes at any point. Do not hesitate to experiment; every action is reversible.</li>
-      </ul>
-
-      <h3>Step 5 — Check equity and resolve violations</h3>
-      <p>A key principle of land readjustment is fairness: every owner should contribute roughly the same proportion of their land, and no one should be left with an unworkably small or poorly located plot. Use the statistics panel to verify this as you design.</p>
-      <ul>
-        <li><strong>Δ%</strong> — how much each parcel has grown or shrunk relative to its original area. Aim for values that are similar across all private parcels. Large negative outliers indicate an owner who is bearing too much of the contribution burden.</li>
-        <li><strong>Overlap w/ orig</strong> — the share of the new parcel footprint that coincides with the owner's original land. Very low values may indicate a parcel has been moved far from its original location, which can be contentious with landowners.</li>
-        <li><strong>Spillover</strong> — area falling outside the project boundary. This should be zero for all parcels before you finalise the design.</li>
-        <li><strong>Violations</strong> — the count of parcels exceeding your configured thresholds. Work through the layout until this column reads zero for all parcels (rows turn green when compliant).</li>
-      </ul>
-      <p>You can sort the table by any column — sorting by <strong>Δ%</strong> ascending quickly shows you which parcels are most reduced and may need rebalancing.</p>
-
-      <div class="tip">
-        <strong>Tip — Δ% colour gradient:</strong> Turn on the <em>Δ% color gradient</em> button in the toolbar to colour private parcels from red (most reduced) to green (least reduced). This gives you an immediate visual read of which parcels are carrying a disproportionate share of the land contribution — those in red are the ones most in need of adjustment to equalize the reduction across owners.
-      </div>
-
-      <h3>Step 6 — Export your work</h3>
-      <p>Once you are satisfied with the layout and all violations are resolved, export the results to share with stakeholders or carry into further analysis.</p>
-      <ul>
-        <li><strong>Export KML</strong> — saves the current parcel layout as a KML file you can open in Google Earth, QGIS, or other GIS tools for further refinement or presentation.</li>
-        <li><strong>Export CSV</strong> — saves the statistics table as a spreadsheet, useful for documenting the land contribution of each owner and supporting negotiations or formal planning submissions.</li>
-      </ul>
-
-    </div>
-  </div>
+<!-- ── Grade overlay legend ─────────────────────────────────────────────── -->
+<div id="grade-legend">
+  <div class="legend-title">Road grade</div>
+  <div class="grade-legend-row"><div class="grade-swatch" style="background:#27ae60"></div>≤ 8% — acceptable</div>
+  <div class="grade-legend-row"><div class="grade-swatch" style="background:#e67e22"></div>8–15% — steep</div>
+  <div class="grade-legend-row"><div class="grade-swatch" style="background:#e74c3c"></div>&gt; 15% — impractical</div>
 </div>
+
+<!-- ── Grade status toast ────────────────────────────────────────────────── -->
+<div id="grade-status"></div>
+
+<!-- ── User guide overlay ───────────────────────────────────────────────── -->
 
 <div id="road-dialog">
   <div id="road-dialog-box">
@@ -671,59 +643,165 @@
 <div id="side-panel">
   <div id="drag-handle"></div>
   <div id="panel-header">
-    <span id="panel-title">Land Readjustment App</span>
+    <div id="panel-tabs">
+      <button class="panel-tab active" data-tab="stats" onclick="switchTab('stats')">Stats</button>
+      <button class="panel-tab"        data-tab="guide" onclick="switchTab('guide')">Guide</button>
+    </div>
     <button id="panel-toggle" onclick="togglePanel()">◀</button>
   </div>
   <div id="panel-body">
 
-    <!-- Parameters -->
-    <div class="sec-hdr" onclick="toggleSection('params-body',this)">
-      Parameters <span class="caret">▾</span>
-    </div>
-    <div id="params-body">
-      <p style="font-size:12px; color:#555; padding: 6px 4px 4px;">Enter the parameters for your land readjustment project below.</p>
-      <div class="param-row">
-        <label>Max reduction (%)</label>
-        <input type="number" id="p-max-red" value="30" min="0" max="100" onchange="computeStats()">
-      </div>
-      <div class="param-row">
-        <label>Min overlap (%)</label>
-        <input type="number" id="p-min-ovlp" value="50" min="0" max="100" onchange="computeStats()">
-      </div>
-      <div class="param-row">
-        <label>Max variation (%)</label>
-        <input type="number" id="p-max-var" value="15" min="0" max="100" onchange="computeStats()">
-      </div>
-      <div class="param-row">
-        <label>Min parcel size (m²)</label>
-        <input type="number" id="p-min-size" value="1000" min="0" step="50" onchange="computeStats()">
-      </div>
-    </div>
+    <!-- ── Stats tab ── -->
+    <div id="panel-stats">
 
-    <!-- Parcel table -->
-    <div class="sec-hdr" onclick="toggleSection('table-body',this)">
-      Parcels <span id="table-cols-badge" class="cols-badge">scroll for more <span style="font-size:14px;line-height:1">▸</span></span><span class="caret">▾</span>
-    </div>
-    <div id="table-body">
-      <div id="table-scroll-wrap">
-        <div class="scroll-fade"></div>
-        <div class="table-inner" id="table-inner">
-          <table id="parcel-table">
-            <thead><tr id="parcel-thead-row"></tr></thead>
-            <tbody id="parcel-tbody"></tbody>
-          </table>
+      <!-- Parameters -->
+      <div class="sec-hdr" onclick="toggleSection('params-body',this)">
+        Parameters <span class="caret">▾</span>
+      </div>
+      <div id="params-body">
+        <p style="font-size:12px; color:#555; padding: 6px 4px 4px;">Fairness thresholds — parcels violating these are flagged in the table below.</p>
+        <div class="param-row">
+          <label>Max reduction (%)</label>
+          <input type="number" id="p-max-red" value="30" min="0" max="100" onchange="computeStats()">
+        </div>
+        <div class="param-row">
+          <label>Min overlap (%)</label>
+          <input type="number" id="p-min-ovlp" value="50" min="0" max="100" onchange="computeStats()">
+        </div>
+        <div class="param-row">
+          <label>Max variation (%)</label>
+          <input type="number" id="p-max-var" value="15" min="0" max="100" onchange="computeStats()">
+        </div>
+        <div class="param-row">
+          <label>Min parcel size (m²)</label>
+          <input type="number" id="p-min-size" value="1000" min="0" step="50" onchange="computeStats()">
         </div>
       </div>
-    <p style="font-size:10px;color:#aaa;margin:4px 2px 0;">Double click parcel name to rename</p>
 
-    <!-- Layout summary -->
-    <div class="sec-hdr" onclick="toggleSection('summary-body',this)" style="margin-top:10px">
-      Layout summary <span class="caret">▾</span>
-    </div>
-    <div id="summary-body" id="summary-content"></div>
+      <!-- Parcel table -->
+      <div class="sec-hdr" onclick="toggleSection('table-body',this)">
+        Parcels <span id="table-cols-badge" class="cols-badge">scroll for more <span style="font-size:14px;line-height:1">▸</span></span><span class="caret">▾</span>
+      </div>
+      <div id="table-body">
+        <div id="table-scroll-wrap">
+          <div class="scroll-fade"></div>
+          <div class="table-inner" id="table-inner">
+            <table id="parcel-table">
+              <thead><tr id="parcel-thead-row"></tr></thead>
+              <tbody id="parcel-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <p style="font-size:10px;color:#aaa;margin:4px 2px 0;">Double click parcel name to rename</p>
+
+        <!-- Layout summary -->
+        <div class="sec-hdr" onclick="toggleSection('summary-body',this)" style="margin-top:10px">
+          Layout summary <span class="caret">▾</span>
+        </div>
+        <div id="summary-body"></div>
+      </div><!-- /table-body -->
+
+    </div><!-- /panel-stats -->
+
+    <!-- ── Guide tab ── -->
+    <div id="panel-guide">
+
+      <div class="qs-box">
+        <h4>⚡ Quick start</h4>
+        <ol>
+          <li>Click <strong>▶ Sample parcels</strong> to load a real example</li>
+          <li>Click <strong>╌ Draw road</strong>, trace a road, double-click to finish</li>
+          <li>Click <strong>↖ Select / Reshape</strong>, drag a vertex to reshape a parcel</li>
+          <li>Switch to the <strong>Stats</strong> tab to see the table update in real time</li>
+          <li>Click <strong>⬇ Export KML</strong> when done</li>
+        </ol>
+        <p class="qs-note">The steps below explain everything in detail.</p>
+      </div>
+
+      <h3>What is LandRe?</h3>
+      <p>LandRe is a planning tool for designing land readjustment layouts. Land readjustment is a technique where landowners pool their parcels, the land is collectively replanned — adding roads, public space, and serviced plots — and the reorganised parcels are redistributed back, each owner receiving a smaller but more valuable, better-connected plot.</p>
+      <p>LandRe lets you experiment with different configurations before committing to a design.</p>
+      <p><strong>Important:</strong> Outputs are for planning exploration and discussion only — not official site plans or survey-grade documents.</p>
+
+      <div style="display:flex; align-items:flex-start; gap:10px; margin:10px 0 14px; flex-wrap:wrap;">
+        <figure>
+          <img src="/static/User-Guide-before.png" alt="Before land readjustment" style="height:140px; width:auto; border-radius:4px; border:1px solid #ddd;">
+          <figcaption>Before: irregular parcels,<br>no road access</figcaption>
+        </figure>
+        <div style="font-size:20px; color:#aaa; align-self:center; flex-shrink:0;">→</div>
+        <figure>
+          <img src="/static/User-Guide-after.png" alt="After land readjustment" style="height:140px; width:auto; border-radius:4px; border:1px solid #ddd;">
+          <figcaption>After: serviced plots with<br>road frontage &amp; public space</figcaption>
+        </figure>
+      </div>
+
+      <h3>Step 1 — Load the original parcels</h3>
+      <p>Load the existing parcel boundaries so the app can track how each owner's land changes.</p>
+      <ul>
+        <li><strong>▶ Sample parcels</strong> — load a built-in example to try the app immediately.</li>
+        <li><strong>📂 Upload KML</strong> — import a KML file with the original parcel boundaries. Recommended if you have GIS data.</li>
+        <li><strong>✏️ Trace parcels</strong> — draw parcels directly on the satellite map by clicking to place vertices. Use when no digital data is available.</li>
+      </ul>
+      <p>Once loaded, originals appear as a fixed reference layer — they don't move when you edit. Use <strong>✏ Edit originals</strong> to correct source boundaries if needed.</p>
+
+      <h3>Step 2 — Design roads and public space</h3>
+      <p>Roads define the structure that everything else is organised around. Lay them out first.</p>
+      <ul>
+        <li><strong>╌ Draw road</strong> — trace a road centreline; a dialog asks for name and width (metres). The road polygon is generated automatically.</li>
+        <li><strong>⬡ Draw polygon</strong> — draw public open space, community facilities, or any non-private parcel. Vertices snap to existing corners and road intersections automatically.</li>
+        <li><strong>Clip overlaps</strong> — trims any existing parcel that overlaps a road, keeping the layers clean.</li>
+      </ul>
+      <details>
+        <summary><span class="arr">▶</span> Advanced: check road grades</summary>
+        <ul>
+          <li><strong>▲ Check road grades</strong> — fetches real elevation data along every road and colours each segment: green (≤ 8% — acceptable), orange (8–15% — steep), red (&gt; 15% — impractical). Hover a segment to see the exact grade. Click <strong>✕ Clear grade overlay</strong> when done.</li>
+        </ul>
+      </details>
+
+      <h3>Step 3 — Readjust the private parcels</h3>
+      <p>Reshape private parcels so each owner gets a well-proportioned plot with road access.</p>
+      <ul>
+        <li><strong>↩ Undo (Ctrl+Z) / ↪ Redo (Ctrl+Y)</strong> — every action is reversible. Experiment freely.</li>
+        <li><strong>↖ Select / Reshape</strong> — click a parcel to select it, then drag its vertices or edges to reshape it.</li>
+        <li><strong>↕ Resize selected parcels</strong> — select one or more parcels and type a percentage to shrink or grow them. Use a negative value (e.g. −15) to apply the land contribution reduction in one step.</li>
+        <li><strong>Clip spillover</strong> — trims any parcel area that falls outside the project boundary.</li>
+        <li><strong>✕ Delete polygon</strong> — click a parcel to remove it entirely.</li>
+      </ul>
+      <details>
+        <summary><span class="arr">▶</span> Advanced reshape tools</summary>
+        <ul>
+          <li><strong>Shared vertices</strong> — shared vertices between adjacent parcels are highlighted in purple. Double-click a shared vertex or edge to move it across all neighbouring boundaries at once, keeping the layout gap-free.</li>
+          <li><strong>Edge alignment</strong> — right-click (or long-press on mobile) any polygon edge for <em>Make parallel to…</em> / <em>Make perpendicular to…</em>. Click a reference edge to rotate the selected edge to match. Also use <em>Insert vertex here</em> to add a vertex at the clicked point.</li>
+          <li><strong>Road vertex alignment</strong> — short-click a road centreline vertex for the same parallel/perpendicular menu. Rotates the adjacent road segment around its midpoint.</li>
+          <li><strong>☐ Align selected with…</strong> — rectangularizes and reorients selected parcels to match a reference edge you click.</li>
+          <li><strong>Shift-drag edge</strong> — hold Shift while dragging an edge to keep it perpendicular, helping produce regular rectangular plots.</li>
+        </ul>
+      </details>
+
+      <h3>Step 4 — Check equity and resolve violations</h3>
+      <p>Switch to the <strong>Stats</strong> tab to see the parcel table. Every owner should contribute roughly the same proportion of land. Configure the thresholds in the <strong>Parameters</strong> section at the top of that tab.</p>
+      <ul>
+        <li><strong>Δ%</strong> — how much each parcel has grown or shrunk. Aim for similar values across all private parcels. Sort this column ascending to find the most-reduced parcels first.</li>
+        <li><strong>Overlap w/ orig</strong> — share of the new parcel that sits within the owner's original land. Very low values may be contentious with landowners.</li>
+        <li><strong>Spillover</strong> — area outside the project boundary. Should be zero before finalising.</li>
+        <li><strong>Violations</strong> — count of parcels exceeding your thresholds. Rows turn green when compliant.</li>
+      </ul>
+
+      <div class="tip">
+        <strong>Tip — Δ% colour gradient:</strong> Turn on <em>Color gradient: Size change ▾</em> in the toolbar to colour parcels from red (most reduced) to green (least reduced) — an immediate visual of where the contribution burden is unequal.
+      </div>
+
+      <h3>Step 5 — Export</h3>
+      <ul>
+        <li><strong>⬇ Export KML</strong> — saves the parcel layout as a KML file for Google Earth, QGIS, or other GIS tools.</li>
+        <li><strong>⬇ Export CSV</strong> — saves the statistics table as a spreadsheet for documenting land contributions and supporting negotiations.</li>
+      </ul>
+
+    </div><!-- /panel-guide -->
 
   </div><!-- /panel-body -->
-  <div style="padding: 8px 10px; border-top: 1px solid #ddd; flex-shrink: 0;">
+
+  <div id="panel-export-footer" style="padding: 8px 10px; border-top: 1px solid #ddd; flex-shrink: 0;">
     <button class="tool-btn" onclick="exportCSV()" style="width:100%">⬇ Export CSV</button>
   </div>
 </div><!-- /side-panel -->
@@ -821,10 +899,16 @@ function initMap() {
 
   baseLayers.satellite.addTo(map);
 
+  // Custom pane for grade overlay — sits above the default overlayPane (400)
+  map.createPane('gradePane');
+  map.getPane('gradePane').style.zIndex = 450;
+  map.getPane('gradePane').style.pointerEvents = 'none';
+
   // Layer groups (order matters for z-index)
   STATE.origLG    = L.layerGroup().addTo(map);
   STATE.boundaryLG = L.layerGroup().addTo(map);
   STATE.editLG    = L.layerGroup().addTo(map);
+  STATE.gradeLG   = L.layerGroup().addTo(map);
   STATE.vertexLG  = L.layerGroup().addTo(map);
   STATE.rulerLG   = L.layerGroup().addTo(map);
 
@@ -1005,6 +1089,8 @@ function positionLegendSafe() {
   if (window.innerWidth <= 900) {
     legend.style.left = '';
     basemap.style.left = '';
+    document.getElementById('grade-legend').style.left = '';
+    positionGradeLegend();
     return;
   }
   // Use scrollWidth so that an active scrollbar (which shrinks clientWidth but
@@ -1015,6 +1101,19 @@ function positionLegendSafe() {
   const left = Math.ceil(tbLeft + tbWidth) + 12 + 'px';
   legend.style.left  = left;
   basemap.style.left = left;
+  document.getElementById('grade-legend').style.left = left;
+  positionGradeLegend();
+}
+
+function positionGradeLegend() {
+  const gradeLeg    = document.getElementById('grade-legend');
+  const gradientLeg = document.getElementById('gradient-legend');
+  const BASE_BOTTOM = 75;
+  if (gradientLeg.classList.contains('visible')) {
+    gradeLeg.style.bottom = (BASE_BOTTOM + gradientLeg.offsetHeight + 8) + 'px';
+  } else {
+    gradeLeg.style.bottom = BASE_BOTTOM + 'px';
+  }
 }
 
 function initResizeHandle() {
@@ -1126,12 +1225,14 @@ function updateGradientLegend(minVal, maxVal, hasData) {
   if (!el) return;
   if (_gradientMode === 'off' || !hasData) {
     el.classList.remove('visible');
+    positionGradeLegend();
     return;
   }
   const wasHidden = !el.classList.contains('visible');
   el.classList.add('visible');
   // On mobile, auto-collapse when first shown
   if (wasHidden && window.innerWidth <= 900) el.classList.add('legend-collapsed');
+  positionGradeLegend();
 
   const titleText = _gradientMode === 'overlap' ? 'Ovlp% gradient' : 'Size change gradient';
   const titleEl = document.getElementById('legend-title');
@@ -3355,14 +3456,24 @@ ${readjusted.map(f => placemark(f, false)).join('\n')}
 
 // ── Stage 5: export CSV (browser-only) ───────────────────────────────────────
 
+function switchTab(name) {
+  document.querySelectorAll('.panel-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === name)
+  );
+  document.getElementById('panel-stats').style.display          = name === 'stats' ? 'block' : 'none';
+  document.getElementById('panel-guide').style.display          = name === 'guide' ? 'block' : 'none';
+  document.getElementById('panel-export-footer').style.display  = name === 'stats' ? ''      : 'none';
+}
+
 function openGuide() {
-  document.getElementById('guide-overlay').classList.add('open');
-}
-function closeGuideBtn() {
-  document.getElementById('guide-overlay').classList.remove('open');
-}
-function closeGuide(e) {
-  if (e.target === document.getElementById('guide-overlay')) closeGuideBtn();
+  const panel = document.getElementById('side-panel');
+  if (panel.classList.contains('collapsed')) togglePanel();
+  if (window.innerWidth <= 900 && !panel.classList.contains('panel-open')) {
+    panel.classList.add('panel-open');
+    document.getElementById('panel-toggle').textContent = '✕';
+    map.invalidateSize();
+  }
+  switchTab('guide');
 }
 
 function exportCSV() {
@@ -4286,6 +4397,126 @@ function startOrigVertexDrag(id, idx, marker) {
   document.addEventListener('touchend',  onUp);
 }
 
+
+// ── Road grade check ─────────────────────────────────────────────────────────
+
+function _haversineDist(a, b) {
+  const R = 6371000;
+  const dLat = (b.lat - a.lat) * Math.PI / 180;
+  const dLng = (b.lng - a.lng) * Math.PI / 180;
+  const lat1  = a.lat * Math.PI / 180;
+  const lat2  = b.lat * Math.PI / 180;
+  const s = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1-s));
+}
+
+function _interpolateRoadVerts(verts, stepM) {
+  // Returns array of {lat,lng} at stepM-metre intervals along the polyline + final point
+  const pts = [];
+  for (let i = 0; i < verts.length - 1; i++) {
+    const a = verts[i], b = verts[i + 1];
+    const d = _haversineDist(a, b);
+    const n = Math.max(1, Math.ceil(d / stepM));
+    for (let j = 0; j < n; j++) {
+      const t = j / n;
+      pts.push({ lat: a.lat + (b.lat - a.lat) * t, lng: a.lng + (b.lng - a.lng) * t });
+    }
+  }
+  const last = verts[verts.length - 1];
+  pts.push({ lat: last.lat, lng: last.lng });
+  return pts;
+}
+
+function _gradeColor(pct) {
+  if (pct <= 8)  return '#27ae60';
+  if (pct <= 15) return '#e67e22';
+  return '#e74c3c';
+}
+
+function _showGradeStatus(msg) {
+  const el = document.getElementById('grade-status');
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function _hideGradeStatus() {
+  document.getElementById('grade-status').classList.remove('visible');
+}
+
+function clearGradeOverlay() {
+  STATE.gradeLG.clearLayers();
+  document.getElementById('grade-legend').classList.remove('visible');
+  positionGradeLegend();
+  document.getElementById('btn-clear-grades').style.display = 'none';
+  document.getElementById('btn-check-grades').style.display = '';
+}
+
+async function checkRoadGrades() {
+  const roads = Object.values(STATE.editableParcels)
+    .filter(p => p.type === 'Road' && p.roadVerts && p.roadVerts.length >= 2);
+
+  if (roads.length === 0) {
+    _showGradeStatus('No roads to check — draw some roads first.');
+    setTimeout(_hideGradeStatus, 3000);
+    return;
+  }
+
+  // Sample every 10 m along each road centreline
+  const roadSamples = roads.map(r => _interpolateRoadVerts(r.roadVerts, 10));
+  const allPts = roadSamples.flat();
+
+  // Fetch elevations in batches of 100 (OpenTopoData limit), 1 req/sec
+  const CHUNK = 100;
+  const elevations = [];
+  _showGradeStatus(`Fetching elevations for ${allPts.length} points…`);
+
+  try {
+    for (let i = 0; i < allPts.length; i += CHUNK) {
+      if (i > 0) await new Promise(r => setTimeout(r, 1100));
+      const chunk = allPts.slice(i, i + CHUNK);
+      const locStr = chunk.map(p => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`).join('|');
+      const res = await fetch(`/api/elevation?locations=${locStr}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (data.status !== 'OK') throw new Error(data.error || 'API error');
+      elevations.push(...data.results.map(r => r.elevation));
+      if (allPts.length > CHUNK)
+        _showGradeStatus(`Fetching… ${Math.min(i + CHUNK, allPts.length)}/${allPts.length} points`);
+    }
+  } catch (err) {
+    _hideGradeStatus();
+    _showGradeStatus(`Elevation fetch failed: ${err.message}`);
+    setTimeout(_hideGradeStatus, 5000);
+    return;
+  }
+
+  _hideGradeStatus();
+  STATE.gradeLG.clearLayers();
+
+  let offset = 0;
+  for (const pts of roadSamples) {
+    const elevs = elevations.slice(offset, offset + pts.length);
+    offset += pts.length;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const dH = Math.abs(elevs[i + 1] - elevs[i]);
+      const dD = _haversineDist(pts[i], pts[i + 1]);
+      if (dD < 0.1) continue;
+      const grade = (dH / dD) * 100;
+      const color = _gradeColor(grade);
+      L.polyline(
+        [L.latLng(pts[i].lat, pts[i].lng), L.latLng(pts[i+1].lat, pts[i+1].lng)],
+        { color, weight: 6, opacity: 0.85, pane: 'gradePane' }
+      )
+      .bindTooltip(`Grade: ${grade.toFixed(1)}%`, { sticky: true, direction: 'top' })
+      .addTo(STATE.gradeLG);
+    }
+  }
+
+  document.getElementById('grade-legend').classList.add('visible');
+  positionGradeLegend();
+  document.getElementById('btn-clear-grades').style.display = '';
+  document.getElementById('btn-check-grades').style.display = 'none';
+}
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
 initMap();
