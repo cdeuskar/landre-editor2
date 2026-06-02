@@ -145,7 +145,6 @@
                    padding: 1px 2px; min-width: 120px; }
 
     /* ── Summary ── */
-    #summary-content { font-size: 12px; }
     .sum-row {
       display: flex; justify-content: space-between;
       padding: 3px 2px; border-bottom: 1px solid #f0f0f0;
@@ -979,6 +978,7 @@ function switchBasemap(type) {
   baseLayers[type].bringToBack();
 }
 
+
 // ── Tool activation ──────────────────────────────────────────────────────────
 const TOOL_BTNS = ['select', 'draw', 'draw-road', 'delete', 'pan', 'ruler', 'edit-orig'];
 
@@ -1172,12 +1172,6 @@ function toggleEditables() {
   else                    { map.removeLayer(STATE.editLG); btn.textContent = '👁 Show new parcels'; }
 }
 
-function toggleBoundary() {
-  STATE.boundaryVis = !STATE.boundaryVis;
-  const btn = document.getElementById('btn-tog-bound');
-  if (STATE.boundaryVis) { map.addLayer(STATE.boundaryLG);    btn.textContent = '⬚ Hide boundary'; }
-  else                   { map.removeLayer(STATE.boundaryLG); btn.textContent = '⬚ Show boundary'; }
-}
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 function generateId() {
@@ -1260,9 +1254,6 @@ function formatArea(m2) {
   return m2 == null ? '—' : Math.round(m2).toLocaleString();
 }
 
-function formatPct(n) {
-  return n == null ? '—' : n.toFixed(1) + '%';
-}
 
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
