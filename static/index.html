@@ -969,6 +969,8 @@ function initMap() {
     const btn = document.getElementById('panel-toggle');
     if (btn) btn.textContent = '▲';
   }
+// Check for a saved session from a previous visit
+setTimeout(checkForSavedSession, 800);
 }
 
 function switchBasemap(type) {
@@ -3351,8 +3353,104 @@ function redo() {
 }
 
 // ── Stage 5: export KML ───────────────────────────────────────────────────────
+// ── AUTOSAVE & SESSION RECOVERY ─────────────────────────────────────────────
+
+const AUTOSAVE_KEY = 'landre_autosave';
+const AUTOSAVE_INTERVAL = 30000; // 30 seconds
+
+function saveSession() {
+  try {
+    const data = {
+      timestamp: new Date().toISOString(),
+      originalFeatures: STATE.originalFeatures.map(o => ({
+        id: o.id,
+        name: o.name,
+        area: o.area,
+        geojson: o.geojson,
+      })),
+      editableFeatures: [],
+    };
+    // Capture all editable polygons
+    STATE.editableLayers.eachLayer(layer => {
+      if (layer.feature || layer.toGeoJSON) {
+        const gj = layer.toGeoJSON();
+        gj.properties = gj.properties || {};
+        gj.properties._type = layer._lrType || 'Private parcel';
+        gj.properties._name = layer._lrName || '';
+        data.editableFeatures.push(gj);
+      }
+    });
+    localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+  } catch(e) {
+    console.warn('Autosave failed:', e);
+  }
+}
+
+function clearSavedSession() {
+  localStorage.removeItem(AUTOSAVE_KEY);
+}
+
+function restoreSession(data) {
+  try {
+    // Restore originals
+    if (data.originalFeatures && data.originalFeatures.length > 0) {
+      loadOriginals(data.originalFeatures.map(o => o.geojson));
+    }
+    // Restore editable polygons
+    if (data.editableFeatures && data.editableFeatures.length > 0) {
+      data.editableFeatures.forEach(gj => {
+        const lls = coordsToLatLngs(gj.geometry.coordinates);
+        const poly = L.polygon(lls);
+        poly._lrType = gj.properties._type || 'Private parcel';
+        poly._lrName = gj.properties._name || '';
+        applyStyle(poly, poly._lrType);
+        STATE.editableLayers.addLayer(poly);
+        bindPolyEvents(poly);
+      });
+    }
+    updateStatistics();
+  } catch(e) {
+    console.warn('Session restore failed:', e);
+  }
+}
+
+function checkForSavedSession() {
+  try {
+    const saved = localStorage.getItem(AUTOSAVE_KEY);
+    if (!saved) return;
+    const data = JSON.parse(saved);
+    if (!data.originalFeatures || data.originalFeatures.length === 0) return;
+    const ts = new Date(data.timestamp);
+    const mins = Math.round((Date.now() - ts) / 60000);
+    const timeStr = mins < 60 ? `${mins} minute${mins !== 1 ? 's' : ''} ago`
+                              : `${Math.round(mins/60)} hour${Math.round(mins/60) !== 1 ? 's' : ''} ago`;
+    const msg = `A previous session was autosaved ${timeStr} with ${data.originalFeatures.length} original parcel(s) and ${data.editableFeatures.length} editable polygon(s).\n\nWould you like to restore it?`;
+    if (confirm(msg)) {
+      restoreSession(data);
+    } else {
+      clearSavedSession();
+    }
+  } catch(e) {
+    console.warn('Could not check for saved session:', e);
+  }
+}
+
+// Start autosave timer
+setInterval(saveSession, AUTOSAVE_INTERVAL);
+
+// Warn user before leaving the page
+window.addEventListener('beforeunload', function(e) {
+  if (STATE.originalFeatures.length > 0) {
+    e.preventDefault();
+    e.returnValue = 'You have unsaved work. Are you sure you want to leave?';
+    return e.returnValue;
+  }
+});
+
+// ── END AUTOSAVE ─────────────────────────────────────────────────────────────
 
 async function exportKML() {
+clearSavedSession(); // User has exported — safe to clear autosave
   if (Object.keys(STATE.editableParcels).length === 0) {
     alert('Nothing to export yet.');
     return;
