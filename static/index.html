@@ -2895,7 +2895,7 @@ function computeStats() {
     }
 
     // Minimum size — applies to all non-road parcel types
-    if (p.type !== 'Road' && newArea < params.minSize) violations.push('size');
+if (p.type !== 'Road' && newArea < params.minSize - 0.01) violations.push('size');
 
     // Spillover — part of the parcel outside the project boundary
     let spilloverArea = null;
