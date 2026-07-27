@@ -1707,7 +1707,7 @@ function onMapDblClick(e) {
 }
 
 function onMapMouseMove(e) {
-  if (STATE.activeTool === 'ruler' && STATE.rulerVerts.length > 0) {
+if (STATE.activeTool === 'ruler' && STATE.rulerVerts.length > 0 && !STATE._rulerClosed) {
     renderRuler(e.latlng);
     return;
   }
@@ -1903,10 +1903,27 @@ function formatDist(m) {
 
 function cancelRuler() {
   STATE.rulerVerts = [];
+  STATE._rulerClosed = false;
   if (STATE.rulerLG) STATE.rulerLG.clearLayers();
 }
 
+function _rulerSnapToClose(latlng) {
+  // Returns true if latlng is within 15px of the first ruler vertex
+  if (STATE.rulerVerts.length < 3) return false;
+  const first = STATE.rulerVerts[0];
+  const firstPt = map.latLngToContainerPoint(first);
+  const newPt   = map.latLngToContainerPoint(latlng);
+  return Math.hypot(firstPt.x - newPt.x, firstPt.y - newPt.y) < 15;
+}
+
 function addRulerVertex(latlng) {
+  // Snap to close if near first vertex
+  if (_rulerSnapToClose(latlng) && STATE.rulerVerts.length >= 3) {
+    STATE._rulerClosed = true;
+    renderRuler();
+    return;
+  }
+  STATE._rulerClosed = false;
   STATE.rulerVerts.push(latlng);
   renderRuler();
 }
@@ -1914,6 +1931,7 @@ function addRulerVertex(latlng) {
 function renderRuler(previewLL) {
   STATE.rulerLG.clearLayers();
   const committed = STATE.rulerVerts;
+  const closed    = STATE._rulerClosed;
   const all = previewLL ? [...committed, previewLL] : committed;
   if (all.length === 0) return;
 
@@ -1948,12 +1966,69 @@ function renderRuler(previewLL) {
     }).addTo(STATE.rulerLG);
   }
 
-  // Total at the last point
-  if (all.length >= 2) {
-    L.marker(all[all.length - 1], {
-      icon: L.divIcon({ className: 'ruler-total', html: formatDist(total), iconSize: null, iconAnchor: [-6, 20] }),
+// Snap-to-close indicator: pulsing circle on first vertex when close enough
+  if (!closed && previewLL && committed.length >= 3) {
+    if (_rulerSnapToClose(previewLL)) {
+      L.circleMarker(committed[0], {
+        radius: 10, color: '#27ae60', weight: 2,
+        fillColor: '#27ae60', fillOpacity: 0.25,
+        interactive: false,
+        className: 'ruler-snap-indicator'
+      }).addTo(STATE.rulerLG);
+    }
+  }
+
+  // Closed polygon: draw closing line and show area
+  if (closed && committed.length >= 3) {
+    // Draw closing line back to first vertex
+    L.polyline([committed[committed.length - 1], committed[0]], {
+      color: '#27ae60', weight: 2.5, interactive: false
+    }).addTo(STATE.rulerLG);
+    // Fill the closed polygon
+    L.polygon(committed, {
+      color: '#27ae60', weight: 1.5,
+      fillColor: '#27ae60', fillOpacity: 0.12,
       interactive: false
     }).addTo(STATE.rulerLG);
+    // Calculate area using Turf
+    const coords = [...committed.map(ll => [ll.lng, ll.lat])];
+    coords.push(coords[0]); // close ring
+    const areaPoly = turf.polygon([coords]);
+    const areaM2   = turf.area(areaPoly);
+    const areaStr  = areaM2 >= 10000
+      ? (areaM2 / 10000).toFixed(3) + ' ha'
+      : Math.round(areaM2).toLocaleString() + ' m²';
+    // Show area label at centroid
+    const centroid = turf.centroid(areaPoly);
+    const cLat = centroid.geometry.coordinates[1];
+    const cLng = centroid.geometry.coordinates[0];
+    L.marker([cLat, cLng], {
+      icon: L.divIcon({
+        className: 'ruler-total',
+        html: `Area: ${areaStr}`,
+        iconSize: null,
+        iconAnchor: [0, 0]
+      }),
+      interactive: false
+    }).addTo(STATE.rulerLG);
+    // Also show total perimeter
+    L.marker(committed[committed.length - 1], {
+      icon: L.divIcon({
+        className: 'ruler-total',
+        html: `Perimeter: ${formatDist(total)}`,
+        iconSize: null,
+        iconAnchor: [-6, 20]
+      }),
+      interactive: false
+    }).addTo(STATE.rulerLG);
+  } else {
+    // Total distance at the last point (non-closed)
+    if (all.length >= 2) {
+      L.marker(all[all.length - 1], {
+        icon: L.divIcon({ className: 'ruler-total', html: formatDist(total), iconSize: null, iconAnchor: [-6, 20] }),
+        interactive: false
+      }).addTo(STATE.rulerLG);
+    }
   }
 }
 
