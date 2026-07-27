@@ -544,7 +544,9 @@
   <button class="tool-btn" id="btn-done-tracing" onclick="doneTracing()"
           style="display:none">✔ Done tracing</button>
   <button class="tool-btn" id="btn-edit-orig"   onclick="activateTool('edit-orig')">✏ Edit originals</button>
-  <hr class="tool-sep">
+  <button class="tool-btn" id="redrawBoundaryBtn" onclick="startRedrawBoundary()" title="Redraw the project boundary by clicking points on the map">⬡ Redraw boundary</button>
+<button class="tool-btn" id="resetBoundaryBtn" onclick="resetBoundaryToHull()" title="Reset boundary to convex hull of original parcels" style="display:none">↺ Reset boundary</button>
+<hr class="tool-sep">
   <div class="tool-group-label">Readjust parcels</div>
   <button class="tool-btn active" id="btn-select" onclick="activateTool('select')">↖ Select / Reshape</button>
   <button class="tool-btn"        id="btn-draw"      onclick="activateTool('draw')">⬡ Draw polygon</button>
@@ -3351,6 +3353,200 @@ function redo() {
   STATE.history.push({ e: serializeEditables(), o: serializeOriginals() });
   _applySnapshot(STATE.redoStack.pop());
 }
+// ── REDRAW PROJECT BOUNDARY ───────────────────────────────────────────────────
+
+let _boundaryDrawVerts = [];
+let _boundaryDrawing   = false;
+let _boundaryPreviewLG = null;
+let _boundaryCustom    = false;  // true when user has set a custom boundary
+
+function startRedrawBoundary() {
+  if (!STATE.originalFeatures.length) {
+    alert('Please upload or trace original parcels first.');
+    return;
+  }
+  _boundaryDrawing   = true;
+  _boundaryDrawVerts = [];
+  if (!_boundaryPreviewLG) {
+    _boundaryPreviewLG = L.layerGroup().addTo(map);
+  }
+  _boundaryPreviewLG.clearLayers();
+
+  // Change cursor and show instruction
+  map.getContainer().style.cursor = 'crosshair';
+  showBoundaryHint('Click to place boundary points · Enter or double-click to finish · Esc to cancel');
+
+  // Temporarily override map click
+  map.off('click', onMapClick);
+  map.on('click', onBoundaryClick);
+  map.on('dblclick', onBoundaryDblClick);
+}
+
+function onBoundaryClick(e) {
+  if (!_boundaryDrawing) return;
+  _boundaryDrawVerts.push([e.latlng.lat, e.latlng.lng]);
+  _updateBoundaryPreview();
+}
+
+function onBoundaryDblClick(e) {
+  if (!_boundaryDrawing) return;
+  // Remove the last point added by the click that fires before dblclick
+  if (_boundaryDrawVerts.length > 0) _boundaryDrawVerts.pop();
+  finishRedrawBoundary();
+}
+
+function _updateBoundaryPreview() {
+  if (!_boundaryPreviewLG) return;
+  _boundaryPreviewLG.clearLayers();
+
+  // Draw vertex markers
+  _boundaryDrawVerts.forEach((v, i) => {
+    L.circleMarker(v, {
+      radius: 5,
+      color: '#e65c00',
+      fillColor: '#fff',
+      fillOpacity: 1,
+      weight: 2,
+    }).addTo(_boundaryPreviewLG);
+  });
+
+  // Draw preview polygon if 3+ points
+  if (_boundaryDrawVerts.length >= 3) {
+    L.polygon(_boundaryDrawVerts, {
+      color: '#e65c00',
+      weight: 2,
+      dashArray: '6 4',
+      fillColor: '#e65c00',
+      fillOpacity: 0.08,
+    }).addTo(_boundaryPreviewLG);
+  } else if (_boundaryDrawVerts.length === 2) {
+    L.polyline(_boundaryDrawVerts, {
+      color: '#e65c00',
+      weight: 2,
+      dashArray: '6 4',
+    }).addTo(_boundaryPreviewLG);
+  }
+}
+
+function finishRedrawBoundary() {
+  if (_boundaryDrawVerts.length < 3) {
+    alert('Please place at least 3 points to define a boundary.');
+    return;
+  }
+
+  // Restore normal map interaction
+  map.off('click',    onBoundaryClick);
+  map.off('dblclick', onBoundaryDblClick);
+  map.on('click',     onMapClick);
+  map.getContainer().style.cursor = '';
+  hideBoundaryHint();
+  _boundaryDrawing = false;
+
+  // Close the polygon
+  const coords = _boundaryDrawVerts.map(v => [v[1], v[0]]); // [lng, lat] for turf
+  coords.push(coords[0]); // close ring
+
+  const newBoundary = turf.polygon([coords]);
+
+  // Check if any original parcels fall outside the new boundary
+  let outsideCount = 0;
+  STATE.originalFeatures.forEach(o => {
+    const intersection = turf.intersect(o.geojson, newBoundary);
+    const origArea = turf.area(o.geojson);
+    const interArea = intersection ? turf.area(intersection) : 0;
+    if (interArea < origArea * 0.95) outsideCount++;
+  });
+
+  if (outsideCount > 0) {
+    const proceed = confirm(
+      `Warning: ${outsideCount} original parcel(s) fall partly or fully outside the new boundary.\n\n` +
+      `The parcels will NOT be clipped automatically — you may want to adjust the boundary or the parcels manually.\n\n` +
+      `Proceed with this boundary anyway?`
+    );
+    if (!proceed) {
+      _boundaryPreviewLG.clearLayers();
+      return;
+    }
+  }
+
+  // Apply the new boundary
+  STATE.projectBoundaryGeojson = newBoundary;
+  STATE.projectArea            = turf.area(newBoundary);
+  _boundaryCustom              = true;
+
+  // Redraw boundary layer
+  STATE.boundaryLG.clearLayers();
+  const style = {
+    color: '#1a1a1a', weight: 2, dashArray: '8 5',
+    fillOpacity: 0, interactive: false,
+  };
+  L.polygon(_boundaryDrawVerts, style).addTo(STATE.boundaryLG);
+
+  // Clear preview
+  _boundaryPreviewLG.clearLayers();
+
+  // Show reset button
+  document.getElementById('resetBoundaryBtn').style.display = '';
+
+  updateStatistics();
+  showBoundaryHint('✓ Custom boundary applied. Use "↺ Reset boundary" to revert to convex hull.', 3000);
+}
+
+function cancelRedrawBoundary() {
+  if (!_boundaryDrawing) return;
+  map.off('click',    onBoundaryClick);
+  map.off('dblclick', onBoundaryDblClick);
+  map.on('click',     onMapClick);
+  map.getContainer().style.cursor = '';
+  hideBoundaryHint();
+  _boundaryDrawing   = false;
+  _boundaryDrawVerts = [];
+  if (_boundaryPreviewLG) _boundaryPreviewLG.clearLayers();
+}
+
+function resetBoundaryToHull() {
+  if (!confirm('Reset the project boundary to the convex hull of the original parcels?')) return;
+  _boundaryCustom = false;
+  document.getElementById('resetBoundaryBtn').style.display = 'none';
+  computeProjectBoundary(); // existing function — recomputes from original parcels
+  updateStatistics();
+}
+
+// Hint banner for boundary drawing mode
+function showBoundaryHint(msg, autoDismissMs) {
+  let el = document.getElementById('boundary-hint');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'boundary-hint';
+    el.style.cssText = `
+      position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+      background: rgba(230,92,0,0.92); color: #fff; padding: 8px 18px;
+      border-radius: 6px; font-size: 13px; font-weight: 500;
+      z-index: 9999; pointer-events: none; white-space: nowrap;
+    `;
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.style.display = 'block';
+  if (autoDismissMs) setTimeout(hideBoundaryHint, autoDismissMs);
+}
+
+function hideBoundaryHint() {
+  const el = document.getElementById('boundary-hint');
+  if (el) el.style.display = 'none';
+}
+
+// Hook Escape key into boundary cancel
+const _origKeyHandler = document.onkeydown;
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && _boundaryDrawing) cancelRedrawBoundary();
+  if (e.key === 'Enter'  && _boundaryDrawing && _boundaryDrawVerts.length >= 3) {
+    e.preventDefault();
+    finishRedrawBoundary();
+  }
+});
+
+// ── END REDRAW PROJECT BOUNDARY ───────────────────────────────────────────────
 
 // ── Stage 5: export KML ───────────────────────────────────────────────────────
 // ── AUTOSAVE & SESSION RECOVERY ─────────────────────────────────────────────
