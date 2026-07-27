@@ -1995,9 +1995,7 @@ function renderRuler(previewLL) {
     coords.push(coords[0]); // close ring
     const areaPoly = turf.polygon([coords]);
     const areaM2   = turf.area(areaPoly);
-    const areaStr  = areaM2 >= 10000
-      ? (areaM2 / 10000).toFixed(3) + ' ha'
-      : Math.round(areaM2).toLocaleString() + ' m²';
+    const areaStr  = Math.round(areaM2).toLocaleString() + ' m²';
     // Show area label at centroid
     const centroid = turf.centroid(areaPoly);
     const cLat = centroid.geometry.coordinates[1];
