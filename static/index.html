@@ -2965,7 +2965,7 @@ function computeStats() {
           const inter    = turf.intersect(tp, orig.geojson);
           overlapPercent = inter ? (turf.area(inter) / newArea) * 100 : 0;
         } catch(e) { overlapPercent = 0; }
-        if (Number(overlapPercent.toFixed(1)) < params.minOvlp) violations.push('overlap');
+        if (params.minOvlp > 0 && Number(overlapPercent.toFixed(1)) < params.minOvlp) violations.push('overlap');
         overlaps.push(overlapPercent);
       }
     }
@@ -3131,7 +3131,7 @@ function renderParcelTable(parcelStats, params) {
     const deltaClass = (reduction !== null && Number(reduction.toFixed(1)) > params.maxRed) ? 'val-bad' : '';
     const deltaStr   = delta !== null
       ? `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%` : '—';
-    const ovlpClass  = (ps.overlapPercent !== null && Number(ps.overlapPercent.toFixed(1)) < params.minOvlp)
+    const ovlpClass  = (ps.overlapPercent !== null && params.minOvlp > 0 && Number(ps.overlapPercent.toFixed(1)) < params.minOvlp)
       ? 'val-bad' : '';
     const ovlpStr    = ps.overlapPercent !== null
       ? `${ps.overlapPercent.toFixed(1)}%` : '—';
@@ -3256,7 +3256,7 @@ function renderSummary(s) {
 
   const spreadBad   = s.reductionSpread !== null && Number(s.reductionSpread.toFixed(1)) > p.maxVar;
   const maxRedBad   = s.maxReduction    !== null && Number(s.maxReduction.toFixed(1))   > p.maxRed;
-  const minOvlpBad  = s.minOverlap      !== null && Number(s.minOverlap.toFixed(1))    < p.minOvlp;
+  const minOvlpBad  = s.minOverlap !== null && p.minOvlp > 0 && Number(s.minOverlap.toFixed(1)) < p.minOvlp;
   const sizeBad     = s.smallParcelsCount > 0;
   const violBad     = s.violationCount    > 0;
 
