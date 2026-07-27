@@ -111,7 +111,7 @@
       pointer-events: none; z-index: 2;
     }
     #table-scroll-wrap.has-overflow .scroll-fade { display: block; }
-    .table-inner { overflow-x: auto; }
+    .table-inner { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 220px); }
     .cols-badge {
       display: none; font-size: 9px; font-weight: 400; letter-spacing: 0.02em;
       color: #666; background: #e2e8f0; border-radius: 3px;
@@ -122,6 +122,7 @@
     #parcel-table th {
       background: #ecf0f1; padding: 4px 5px; text-align: left;
       border-bottom: 2px solid #bdc3c7; white-space: nowrap; font-size: 10px;
+      position: sticky; top: 0; z-index: 2;
     }
     #parcel-table td {
       padding: 3px 5px; border-bottom: 1px solid #eee; white-space: nowrap;
