@@ -950,6 +950,7 @@ function initMap() {
         STATE.vertexLG.clearLayers(); document.getElementById('vhandles').innerHTML = '';
         refreshOrigLayer();
       }
+      activateTool('select');
     }
     if (e.key === 'Enter') {
       const isRoad    = STATE.activeTool === 'draw-road';
