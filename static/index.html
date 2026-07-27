@@ -557,13 +557,17 @@
   <hr class="tool-sep">
   <button class="tool-btn" onclick="undo()">↩ Undo (Ctrl+Z)</button>
   <button class="tool-btn" onclick="redo()">↪ Redo (Ctrl+Y)</button>
-  <hr class="tool-sep">
-<div class="tool-shrink-row">
+<hr class="tool-sep">
+  <div class="tool-shrink-row">
+    <label>Resize&nbsp;%</label>
+    <input type="number" id="shrink-pct" value="-10" min="-99" max="999" step="1">
+  </div>
+  <button class="tool-btn" onclick="shrinkSelected()">↕ Resize selected parcels</button>
+  <div class="tool-shrink-row">
     <label>Resize&nbsp;to&nbsp;m²</label>
     <input type="number" id="resize-m2" min="1" step="1" placeholder="m²">
   </div>
-  <button class="tool-btn" onclick="shrinkSelected()">↕ Resize selected parcels</button>
-<button class="tool-btn" onclick="resizeToM2()">↕ Resize to m²</button>
+  <button class="tool-btn" onclick="resizeToM2()">↕ Resize to m²</button>
   <button class="tool-btn" id="btn-align-polys" onclick="startAlignPolygons()">☐ Align selected with…</button>
   <button class="tool-btn" onclick="clipOverlaps()"><svg width="15" height="12" viewBox="0 0 15 12" style="vertical-align:middle;margin-right:4px" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.5" y="0.5" width="8" height="7"/><rect x="6" y="3.5" width="8" height="7"/><rect x="6" y="3.5" width="2.5" height="4" fill="#ccc" stroke="#ccc" stroke-width="1"/></svg>Clip overlaps</button>
   <button class="tool-btn" onclick="clipSpillover()"><svg width="16" height="12" viewBox="0 0 16 12" style="vertical-align:middle;margin-right:4px" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.5" y="0.5" width="11" height="11"/><path d="M2,2 L2,10 L9,10 L9,8 L11.5,7 L11.5,5 L9,4 L9,2 Z"/><path d="M11.5,7 L14,6 L11.5,5" stroke="#ccc" stroke-width="1.2"/></svg>Clip spillover</button>
