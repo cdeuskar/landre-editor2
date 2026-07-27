@@ -563,6 +563,10 @@
     <input type="number" id="shrink-pct" value="-10" min="-99" max="999" step="1">
   </div>
   <button class="tool-btn" onclick="shrinkSelected()">↕ Resize selected parcels</button>
+  <label style="margin-left:8px">Resize&nbsp;to&nbsp;m²</label>
+<input id="resize-m2" type="number" min="1" step="1" placeholder="e.g. 500"
+  style="width:90px;padding:3px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px">
+<button class="tool-btn" onclick="resizeToM2()">↕ Resize to m²</button>
   <button class="tool-btn" id="btn-align-polys" onclick="startAlignPolygons()">☐ Align selected with…</button>
   <button class="tool-btn" onclick="clipOverlaps()"><svg width="15" height="12" viewBox="0 0 15 12" style="vertical-align:middle;margin-right:4px" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.5" y="0.5" width="8" height="7"/><rect x="6" y="3.5" width="8" height="7"/><rect x="6" y="3.5" width="2.5" height="4" fill="#ccc" stroke="#ccc" stroke-width="1"/></svg>Clip overlaps</button>
   <button class="tool-btn" onclick="clipSpillover()"><svg width="16" height="12" viewBox="0 0 16 12" style="vertical-align:middle;margin-right:4px" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="0.5" y="0.5" width="11" height="11"/><path d="M2,2 L2,10 L9,10 L9,8 L11.5,7 L11.5,5 L9,4 L9,2 Z"/><path d="M11.5,7 L14,6 L11.5,5" stroke="#ccc" stroke-width="1.2"/></svg>Clip spillover</button>
@@ -3891,6 +3895,38 @@ function shrinkSelected() {
 
     // Area scales as factor², so to hit targetArea from currentArea:
     const scaleFactor = Math.sqrt(targetArea / currentArea);
+    const scaled      = turf.transformScale(tp, scaleFactor);
+    p.latlngs         = coordsToLatLngs(scaled.geometry.coordinates);
+  }
+
+  refreshEditableLayer();
+  if (STATE.selectedIds.size === 1) renderVertexHandles(STATE.lastSelectedId);
+  computeStats();
+}
+
+function resizeToM2() {
+  const targetM2 = parseFloat(document.getElementById('resize-m2').value);
+  if (isNaN(targetM2) || targetM2 <= 0) {
+    alert('Please enter a target area in square metres greater than 0.');
+    return;
+  }
+  if (STATE.selectedIds.size === 0) {
+    alert('Please select at least one parcel first.');
+    return;
+  }
+  pushHistory();
+  const origById = {};
+  STATE.originalFeatures.forEach(o => { origById[o.id] = o; });
+
+  for (const id of STATE.selectedIds) {
+    const p = STATE.editableParcels[id];
+    if (!p) continue;
+    if (p.type === 'Road') continue;
+    let tp;
+    try { tp = latlngsToTurf(p.latlngs); } catch(e) { continue; }
+    const currentArea = turf.area(tp); // in m²
+    if (currentArea <= 0) continue;
+    const scaleFactor = Math.sqrt(targetM2 / currentArea);
     const scaled      = turf.transformScale(tp, scaleFactor);
     p.latlngs         = coordsToLatLngs(scaled.geometry.coordinates);
   }
