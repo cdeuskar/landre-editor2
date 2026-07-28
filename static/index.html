@@ -1576,7 +1576,17 @@ function loadOriginals(features) {
 function computeProjectBoundary() {
   STATE.boundaryLG.clearLayers();
   if (STATE.originalFeatures.length === 0) return;
-
+  // If user has drawn a custom boundary, redraw it and skip recalculation
+  if (_boundaryCustom && STATE.projectBoundaryGeojson) {
+    const style = { color: '#111', weight: 2.5, dashArray: '9 6', fill: false, interactive: false };
+    const geom = STATE.projectBoundaryGeojson.geometry;
+    const polys = geom.type === 'MultiPolygon' ? geom.coordinates : [geom.coordinates];
+    polys.forEach(polyCoords => {
+      STATE.boundaryLG.addLayer(L.polygon(coordsToLatLngs(polyCoords), style));
+    });
+    STATE.projectArea = turf.area(STATE.projectBoundaryGeojson);
+    return;
+  }
   let hull = STATE.originalFeatures[0].geojson;
   for (let i = 1; i < STATE.originalFeatures.length; i++) {
     const u = turf.union(hull, STATE.originalFeatures[i].geojson);
