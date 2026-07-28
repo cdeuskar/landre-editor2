@@ -541,7 +541,9 @@
   <div class="tool-group-label">Input original parcels</div>
   <button class="tool-btn" onclick="loadDemoKML()">▶ Sample parcels</button>
   <button class="tool-btn" id="btn-upload-kml"  onclick="triggerKMLUpload()">📂 Upload KML file</button>
-  <button class="tool-btn" id="btn-trace"        onclick="startTracing()">✏️ Trace parcels</button>
+  <button class="tool-btn" id="btn-load-readjusted" onclick="triggerLoadReadjusted()">📂 Load readjusted parcels</button>
+<input type="file" id="readjusted-kml-input" accept=".kml" style="display:none" onchange="handleReadjustedKML(event)">
+<button class="tool-btn" id="btn-trace"        onclick="startTracing()">✏️ Trace parcels</button>
   <button class="tool-btn" id="btn-done-tracing" onclick="doneTracing()"
           style="display:none">✔ Done tracing</button>
   <button class="tool-btn" id="btn-edit-orig"   onclick="activateTool('edit-orig')">✏ Edit originals</button>
@@ -1305,6 +1307,94 @@ function latlngsToCoords(latlngs) {
 function latlngsToTurf(latlngs) {
   return turf.polygon([latlngsToCoords(latlngs)]);
 }
+
+// ── Load readjusted parcels from KML ─────────────────────────────────────────
+
+function triggerLoadReadjusted() {
+  if (!STATE.originalFeatures.length) {
+    alert('Please upload or trace the original parcels first, then load your readjusted parcels on top.');
+    return;
+  }
+  if (Object.keys(STATE.editableParcels).length > 0) {
+    if (!confirm('Loading readjusted parcels will replace your current editable layer. Continue?')) return;
+  }
+  document.getElementById('readjusted-kml-input').click();
+}
+
+async function handleReadjustedKML(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+
+  let features = [];
+  try {
+    // Try server-side parse first
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/upload/kml', { method: 'POST', body: formData });
+      if (res.ok) {
+        const fc = await res.json();
+        if (fc.features?.length > 0) features = fc.features;
+      }
+    } catch {}
+    // Fallback: browser-side parse
+    if (!features.length) {
+      const text = await file.text();
+      features = parseKMLBrowser(text);
+    }
+  } catch (err) {
+    alert('Could not parse KML: ' + err.message);
+    return;
+  }
+
+  if (!features.length) {
+    alert('No polygon features found in the KML file.');
+    return;
+  }
+
+  // Clear existing editable parcels
+  pushHistory();
+  STATE.editableParcels = {};
+
+  // Type mapping from KML description or name keywords
+  function detectType(name, description) {
+    const str = ((name || '') + ' ' + (description || '')).toLowerCase();
+    if (str.includes('road'))                              return 'Road';
+    if (str.includes('commercial'))                        return 'Public commercial';
+    if (str.includes('social') || str.includes('school') || str.includes('clinic')) return 'Public social';
+    if (str.includes('open') || str.includes('space') || str.includes('pond')) return 'Open space';
+    return 'Private parcel';
+  }
+
+  // Find matching original parcel by name
+  const origByName = {};
+  STATE.originalFeatures.forEach(o => { origByName[o.name.toLowerCase()] = o; });
+
+  features.forEach((feat, i) => {
+    const geom = feat.geometry;
+    if (!geom || geom.type !== 'Polygon') return;
+    const name        = feat.properties?.name || `Parcel ${parcelLabel(i)}`;
+    const description = feat.properties?.description || '';
+    const type        = feat.properties?.type || detectType(name, description);
+    const latlngs     = coordsToLatLngs(geom.coordinates);
+    const id          = generateId();
+
+    // Try to match to an original parcel by name
+    const matchedOrig = origByName[name.toLowerCase()];
+    const originalId  = matchedOrig ? matchedOrig.id : null;
+
+    STATE.editableParcels[id] = { id, name, type, latlngs, originalId };
+  });
+
+  refreshEditableLayer();
+  computeStats();
+
+  const count = Object.keys(STATE.editableParcels).length;
+  alert(`Loaded ${count} readjusted parcel${count !== 1 ? 's' : ''}. You can now continue editing.`);
+}
+
+// ── END Load readjusted parcels ───────────────────────────────────────────────
 
 // ── Stage 2: KML upload ───────────────────────────────────────────────────────
 
