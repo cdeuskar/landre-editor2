@@ -225,6 +225,14 @@
     }
     .close-pulse { animation: close-pulse 0.85s ease-in-out infinite; }
 
+/* ── Label visibility toggle ── */
+    .labels-hidden .orig-label,
+    .labels-hidden .edit-label,
+    .labels-hidden .road-label { display: none !important; }
+
+    /* ── Polygon labels ── */
+    .orig-label {
+
     /* ── Polygon labels ── */
     .orig-label {
       background: none; border: none; box-shadow: none;
@@ -578,6 +586,7 @@
   <button class="tool-btn" id="btn-clear-grades" onclick="clearGradeOverlay()" style="display:none">✕ Clear grade overlay</button>
 
   <hr class="tool-sep">
+  <button class="tool-btn" id="btn-tog-labels" onclick="toggleLabels()">🏷 Hide labels</button>
   <button class="tool-btn" id="btn-tog-orig"  onclick="toggleOriginals()">👁 Hide originals</button>
   <button class="tool-btn" id="btn-tog-edit"  onclick="toggleEditables()">👁 Hide new parcels</button>
   <button class="tool-btn active" id="btn-delta-gradient" onclick="toggleDeltaGradient()">Color gradient: Size change ▾</button>
@@ -2032,6 +2041,13 @@ function cancelDraw() {
 
 function formatDist(m) {
   return m < 1000 ? m.toFixed(1) + ' m' : (m / 1000).toFixed(3) + ' km';
+}
+
+function toggleLabels() {
+  const container = map.getContainer();
+  const btn = document.getElementById('btn-tog-labels');
+  const hidden = container.classList.toggle('labels-hidden');
+  btn.textContent = hidden ? '🏷 Show labels' : '🏷 Hide labels';
 }
 
 function cancelRuler() {
