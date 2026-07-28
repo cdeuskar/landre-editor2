@@ -16,10 +16,10 @@
     body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
            font-size: 13px; display: flex; height: 100vh; overflow: hidden; }
 
-    /* ── Map ── */
+    
     #map { flex: 1; height: 100vh; z-index: 0; }
 
-    /* ── Toolbar (left, floating) ── */
+    
     #toolbar {
       position: absolute; top: 10px; left: 10px; z-index: 1000;
       display: flex; flex-direction: column; gap: 3px;
@@ -42,7 +42,7 @@
     .tool-btn.guide-btn { background: #27ae60; color: white; border-color: #1e8449; }
     .tool-btn.guide-btn:hover { background: #219a52; }
 
-    /* ── Basemap switcher (inside toolbar) ── */
+    
     #basemap-ctrl {
       position: absolute; bottom: 10px; left: 10px; z-index: 1000;
       background: white; border: 1px solid #bbb; border-radius: 4px;
@@ -51,7 +51,7 @@
     #basemap-ctrl label { display: flex; align-items: center; gap: 5px;
                           cursor: pointer; padding: 1px 0; }
 
-    /* ── Side panel ── */
+    
     #side-panel {
       position: relative;
       width: 500px; min-width: 160px; height: 100vh;
@@ -82,7 +82,7 @@
     }
     #drag-handle:hover { background: rgba(59,110,212,.25); }
 
-    /* ── Collapsible sections ── */
+    
     .sec-hdr {
       font-weight: 600; color: #2c3e50; font-size: 12px;
       margin: 10px 0 5px; padding-bottom: 4px;
@@ -93,7 +93,7 @@
     .sec-hdr .caret { font-size: 10px; transition: transform .15s; }
     .sec-hdr.closed .caret { transform: rotate(-90deg); }
 
-    /* ── Parameters ── */
+    
     .param-row {
       display: flex; align-items: center; justify-content: space-between;
       margin: 4px 0; font-size: 12px;
@@ -103,7 +103,7 @@
       border-radius: 3px; text-align: right; font-size: 12px;
     }
 
-    /* ── Parcel table ── */
+    
     #table-scroll-wrap { position: relative; }
     #table-scroll-wrap .scroll-fade {
       display: none; position: absolute; top: 0; right: 0; bottom: 0; width: 32px;
@@ -145,7 +145,7 @@
     .type-select { font-size: 11px; border: 1px solid #ccc; border-radius: 2px;
                    padding: 1px 2px; min-width: 120px; }
 
-    /* ── Summary ── */
+    
     .sum-row {
       display: flex; justify-content: space-between;
       padding: 3px 2px; border-bottom: 1px solid #f0f0f0;
@@ -153,7 +153,7 @@
     .sum-label { color: #555; }
     .sum-val   { font-weight: 600; }
 
-    /* ── Shrink row ── */
+    
     .tool-shrink-row {
       display: flex; align-items: center; justify-content: space-between;
       background: white; border: 1px solid #bbb; border-radius: 4px;
@@ -165,10 +165,10 @@
       border-radius: 3px; text-align: right; font-size: 12px;
     }
 
-    /* ── Drawing cursor ── */
+    
     .drawing-cursor { cursor: crosshair !important; }
 
-    /* ── Ruler labels ── */
+    
     .ruler-label {
       background: rgba(0,0,0,.7); color: #fff;
       padding: 1px 6px; border-radius: 9px; font-size: 10px;
@@ -180,7 +180,7 @@
       white-space: nowrap; border: none; box-shadow: none;
     }
 
-    /* ── Vertex / midpoint drag handles (HTML divs, above all Leaflet panes) ── */
+    
     #vhandles {
       position: absolute; top: 0; left: 0;
       width: 100%; height: 100%;
@@ -218,7 +218,7 @@
     }
     .vhandle-rotate:hover { background: #ebf5fb; }
 
-    /* ── Close-polygon pulse marker ── */
+    
     @keyframes close-pulse {
       0%, 100% { opacity: 1; }
       50%       { opacity: 0.3; }
@@ -229,10 +229,10 @@
     .labels-hidden .edit-label,
     .labels-hidden .road-label { display: none !important; }
 
-    /* ── Polygon labels ── */
+    
     .orig-label {
 
-    /* ── Polygon labels ── */
+    
     .orig-label {
       background: none; border: none; box-shadow: none;
       color: #aaa; font-size: 11px; font-weight: 400;
@@ -252,7 +252,7 @@
       padding: 0; pointer-events: none;
     }
 
-    /* ── Modal dialogs (name + road) ── */
+    
     #name-dialog, #road-dialog {
       display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
       z-index: 9999; align-items: center; justify-content: center;
@@ -276,7 +276,7 @@
     .btn-primary { background: #2980b9; color: white; border: none; }
     .btn-cancel  { background: #ecf0f1; border: 1px solid #bbb; }
 
-    /* ── Edge-alignment popup ── */
+    
     #edge-popup, #road-vertex-popup {
       display: none; position: fixed; background: white;
       border: 1px solid #bbb; border-radius: 4px;
@@ -300,7 +300,7 @@
     }
     #edge-op-hint.visible { display: block; }
 
-    /* ── Mobile draw-finish button ── */
+    
     #draw-finish-btn {
       display: none; position: fixed; bottom: 24px;
       left: 50%; transform: translateX(-50%);
@@ -311,8 +311,8 @@
     }
     #draw-finish-btn.visible { display: block; }
 
-    /* ── User guide overlay ── */
-    /* ── Panel tabs ── */
+    
+    
     #panel-tabs { display: flex; gap: 2px; flex: 1; margin-right: 6px; }
     .panel-tab {
       background: rgba(255,255,255,.12); border: none; border-radius: 3px;
@@ -323,7 +323,7 @@
     .panel-tab:hover { background: rgba(255,255,255,.22); color: #fff; }
     .panel-tab.active { background: rgba(255,255,255,.26); color: #fff; }
 
-    /* ── Guide content (inside panel tab) ── */
+    
     #panel-guide {
       display: none; font-size: 13px; line-height: 1.6; color: #222;
     }
@@ -366,7 +366,7 @@
     .qs-box li { margin-bottom: 3px; font-size: 12.5px; }
     .qs-note { margin-top: 7px; font-size: 11.5px; color: #555; font-style: italic; }
 
-    /* ── Gradient legend ── */
+    
     #gradient-legend {
       display: none;
       position: absolute; bottom: 75px; left: 10px; z-index: 1000;
@@ -389,14 +389,14 @@
       display: flex; justify-content: space-between;
       font-size: 10px; color: #444;
     }
-    /* Mobile: collapsed state shows only the title row */
+    
     #gradient-legend.legend-collapsed { min-width: 0; padding: 6px 10px; }
     #gradient-legend.legend-collapsed .legend-bar,
     #gradient-legend.legend-collapsed .legend-labels { display: none; }
     #gradient-legend.legend-collapsed .legend-title { margin-bottom: 0; }
     #legend-title .legend-caret { display: none; margin-left: 4px; font-style: normal; }
 
-    /* ── Grade overlay legend ── */
+    
     #grade-legend {
       display: none;
       position: absolute; bottom: 75px; left: 10px; z-index: 1001;
@@ -415,7 +415,7 @@
     }
     .grade-swatch { width: 28px; height: 8px; border-radius: 3px; flex-shrink: 0; }
 
-    /* ── Grade status toast ── */
+    
     #grade-status {
       display: none;
       position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -426,12 +426,12 @@
     }
     #grade-status.visible { display: block; }
 
-    /* ══ Mobile menu/stats overlay buttons (hidden on desktop) ════════════ */
+    
     #mobile-menu-btn, #mobile-stats-card, #menu-backdrop { display: none; }
 
-    /* ══ Mobile / touch layout ═════════════════════════════════════════════ */
+    
     @media (max-width: 900px) {
-      /* Toolbar → left side drawer (hidden until menu-open) */
+      
       #toolbar {
         position: fixed; top: 0; left: 0; bottom: 0; right: auto;
         flex-direction: column; width: 220px;
@@ -451,17 +451,17 @@
       .tool-shrink-row { min-height: 44px; }
       #btn-panel { display: block !important; }
 
-      /* Map fills full viewport */
+      
       #map { height: 100vh !important; }
 
-      /* Backdrop behind drawer */
+      
       #menu-backdrop {
         display: none; position: fixed; inset: 0;
         background: rgba(0,0,0,0.4); z-index: 2400;
       }
       #menu-backdrop.open { display: block; }
 
-      /* Mobile menu button — top left */
+      
       #mobile-menu-btn {
         display: flex; align-items: center; justify-content: center;
         position: fixed; top: 10px; left: 10px; z-index: 2000;
@@ -471,7 +471,7 @@
         box-shadow: 0 2px 8px rgba(0,0,0,0.18);
       }
 
-      /* Mobile stats card — top right (leaves room for Leaflet zoom controls ~40px) */
+      
       #mobile-stats-card {
         display: block; position: fixed; top: 10px; right: 50px; z-index: 2000;
         background: white; border: 1px solid #bbb; border-radius: 6px;
@@ -482,7 +482,7 @@
       #mobile-stats-card .msc-count { font-size: 18px; font-weight: 700; color: #2c3e50; }
       #mobile-stats-card .msc-viol  { font-size: 10px; font-weight: 600; }
 
-      /* Side panel → bottom sheet (from bottom edge, not above toolbar) */
+      
       #side-panel {
         position: fixed; bottom: 0; left: 0; right: 0;
         width: 100% !important; min-width: 0 !important;
@@ -494,18 +494,18 @@
       #drag-handle { display: none; }
       #panel-toggle { font-size: 20px; padding: 4px 8px; }
 
-      /* Basemap + legend clear of any bottom elements */
+      
       #basemap-ctrl { bottom: 10px; left: 10px; }
       #gradient-legend { bottom: 75px; cursor: pointer; }
       #gradient-legend .legend-title { pointer-events: none; }
       #legend-title .legend-caret { display: inline; }
 
-      /* Larger vertex handles for touch (28 px → ~44 px tap target) */
+      
       .vhandle-v  { width: 28px; height: 28px; margin: -14px 0 0 -14px; border-width: 3px; }
       .vhandle-m  { width: 24px; height: 24px; margin: -12px 0 0 -12px; }
       .vhandle-road { width: 28px; height: 28px; margin: -14px 0 0 -14px; border-width: 3px; }
 
-      /* Bigger modal inputs */
+      
       #name-dialog-box input, #name-dialog-box select,
       #road-dialog-box  input, #road-dialog-box  select { font-size: 16px; padding: 8px 6px; }
       #name-dialog-box button, #road-dialog-box button { min-height: 44px; padding: 8px 16px; }
@@ -526,13 +526,13 @@
 </head>
 <body>
 
-<!-- ── Map ─────────────────────────────────────────────────────────────── -->
+<!-- -- Map --------------------------------------------------------------─ -->
 <div id="map"></div>
 
-<!-- ── Mobile draw-finish floating button ───────────────────────────────── -->
+<!-- -- Mobile draw-finish floating button --------------------------------─ -->
 <button id="draw-finish-btn" onclick="finishDrawing()">✔ Close polygon</button>
 
-<!-- ── Mobile menu backdrop + buttons ───────────────────────────────────── -->
+<!-- -- Mobile menu backdrop + buttons ------------------------------------─ -->
 <div id="menu-backdrop" onclick="closeMobileMenu()"></div>
 <button id="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Open menu">☰</button>
 <div id="mobile-stats-card" onclick="togglePanel()" title="Open statistics panel">
@@ -541,7 +541,7 @@
   <div class="msc-viol"  id="msc-viol">—</div>
 </div>
 
-<!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
+<!-- -- Toolbar ------------------------------------------------------------ -->
 <div id="toolbar">
   <button class="tool-btn guide-btn" onclick="openGuide()">? User Guide</button>
   <hr class="tool-sep">
@@ -595,7 +595,7 @@
   <button class="tool-btn" id="btn-panel" onclick="togglePanel()" style="display:none">☰ Panel</button>
 </div>
 
-<!-- ── Basemap switcher ─────────────────────────────────────────────────── -->
+<!-- -- Basemap switcher --------------------------------------------------─ -->
 <div id="basemap-ctrl">
   <label><input type="radio" name="bm" value="satellite" checked
                 onchange="switchBasemap('satellite')"> Satellite</label>
@@ -603,7 +603,7 @@
                 onchange="switchBasemap('osm')"> OpenStreetMap</label>
 </div>
 
-<!-- ── Gradient legend ──────────────────────────────────────────────────── -->
+<!-- -- Gradient legend ---------------------------------------------------- -->
 <div id="gradient-legend" onclick="toggleLegendCollapse()">
   <div class="legend-title" id="legend-title">Size change gradient<i class="legend-caret"> ▾</i></div>
   <div class="legend-bar"></div>
@@ -613,7 +613,7 @@
   </div>
 </div>
 
-<!-- ── Grade overlay legend ─────────────────────────────────────────────── -->
+<!-- -- Grade overlay legend ----------------------------------------------─ -->
 <div id="grade-legend">
   <div class="legend-title">Road grade</div>
   <div class="grade-legend-row"><div class="grade-swatch" style="background:#27ae60"></div>≤ 8% — acceptable</div>
@@ -621,10 +621,10 @@
   <div class="grade-legend-row"><div class="grade-swatch" style="background:#e74c3c"></div>&gt; 15% — impractical</div>
 </div>
 
-<!-- ── Grade status toast ────────────────────────────────────────────────── -->
+<!-- -- Grade status toast -------------------------------------------------- -->
 <div id="grade-status"></div>
 
-<!-- ── User guide overlay ───────────────────────────────────────────────── -->
+<!-- -- User guide overlay ------------------------------------------------─ -->
 
 <div id="road-dialog">
   <div id="road-dialog-box">
@@ -656,7 +656,7 @@
 <input type="file" id="kml-input" accept=".kml" style="display:none"
        onchange="handleKMLFile(event)" />
 
-<!-- ── Side panel ───────────────────────────────────────────────────────── -->
+<!-- -- Side panel --------------------------------------------------------─ -->
 <div id="side-panel">
   <div id="drag-handle"></div>
   <div id="panel-header">
@@ -668,7 +668,7 @@
   </div>
   <div id="panel-body">
 
-    <!-- ── Stats tab ── -->
+    <!-- -- Stats tab -- -->
     <div id="panel-stats">
 
       <!-- Parameters -->
@@ -720,7 +720,7 @@
 
     </div><!-- /panel-stats -->
 
-    <!-- ── Guide tab ── -->
+    <!-- -- Guide tab -- -->
     <div id="panel-guide">
 
       <div class="qs-box">
@@ -823,7 +823,7 @@
   </div>
 </div><!-- /side-panel -->
 
-<!-- ── Name / type dialog ───────────────────────────────────────────────── -->
+<!-- -- Name / type dialog ------------------------------------------------─ -->
 <div id="name-dialog">
   <div id="name-dialog-box">
     <h3>New polygon</h3>
@@ -844,11 +844,11 @@
 </div>
 
 
-<!-- ══════════════════════════════════════════════════════════════════════
+<!-- ======================================================================
      JavaScript — Stage 1: globals, map init, tool switching, UI helpers
-     ══════════════════════════════════════════════════════════════════════ -->
+     ====================================================================== -->
 <script>
-// ── Global state ────────────────────────────────────────────────────────────
+// -- Global state ------------------------------------------------------------
 const STATE = {
   // layers
   originalFeatures:  [],       // [{id, name, area, geojson}]
@@ -896,7 +896,7 @@ const STATE = {
   projectArea: 0,
 };
 
-// ── Map ─────────────────────────────────────────────────────────────────────
+// -- Map --------------------------------------------------------------------─
 let map;
 const baseLayers = {};
 
@@ -1000,7 +1000,7 @@ function switchBasemap(type) {
 }
 
 
-// ── Tool activation ──────────────────────────────────────────────────────────
+// -- Tool activation ----------------------------------------------------------
 const TOOL_BTNS = ['select', 'draw', 'draw-road', 'delete', 'pan', 'ruler', 'edit-orig'];
 
 function activateTool(name) {
@@ -1036,7 +1036,7 @@ function activateTool(name) {
   map.dragging[name === 'pan' ? 'enable' : 'enable'](); // always enabled (Leaflet default)
 }
 
-// ── Touch helper ─────────────────────────────────────────────────────────────
+// -- Touch helper ------------------------------------------------------------─
 function clientXY(e) {
   if (e && e.touches && e.touches.length > 0)
     return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
@@ -1068,7 +1068,7 @@ function addLongPressListener(el, callback) {
   el.addEventListener('touchend',   () => { if (_lpTimer) { clearTimeout(_lpTimer); _lpTimer = null; } });
 }
 
-// ── Mobile menu helpers ───────────────────────────────────────────────────────
+// -- Mobile menu helpers ------------------------------------------------------─
 function toggleMobileMenu() {
   const toolbar   = document.getElementById('toolbar');
   const backdrop  = document.getElementById('menu-backdrop');
@@ -1081,7 +1081,7 @@ function closeMobileMenu() {
   document.getElementById('menu-backdrop').classList.remove('open');
 }
 
-// ── Panel / section UI ───────────────────────────────────────────────────────
+// -- Panel / section UI ------------------------------------------------------─
 function togglePanel() {
   const panel = document.getElementById('side-panel');
   const btn   = document.getElementById('panel-toggle');
@@ -1194,7 +1194,7 @@ function toggleEditables() {
 }
 
 
-// ── Utilities ────────────────────────────────────────────────────────────────
+// -- Utilities ----------------------------------------------------------------
 function generateId() {
   return '_' + Math.random().toString(36).substr(2, 9);
 }
@@ -1293,7 +1293,7 @@ function confirmDestructive(action) {
     confirm(`${action} will discard all your drawn and readjusted parcels. Continue?`);
 }
 
-// ── Stage 2: coordinate helpers ──────────────────────────────────────────────
+// -- Stage 2: coordinate helpers ----------------------------------------------
 
 // GeoJSON ring [[lng,lat],...] → L.LatLng[] (without closing duplicate)
 function coordsToLatLngs(ring) {
@@ -1316,7 +1316,7 @@ function latlngsToTurf(latlngs) {
   return turf.polygon([latlngsToCoords(latlngs)]);
 }
 
-// ── Load readjusted parcels from KML ─────────────────────────────────────────
+// -- Load readjusted parcels from KML ----------------------------------------─
 
 function triggerLoadReadjusted() {
   if (!STATE.originalFeatures.length) {
@@ -1421,9 +1421,9 @@ async function handleReadjustedKML(e) {
   alert(`Loaded ${count} readjusted parcel${count !== 1 ? 's' : ''}. You can now continue editing.`);
 }
 
-// ── END Load readjusted parcels ───────────────────────────────────────────────
+// -- END Load readjusted parcels ----------------------------------------------─
 
-// ── Stage 2: KML upload ───────────────────────────────────────────────────────
+// -- Stage 2: KML upload ------------------------------------------------------─
 
 async function loadDemoKML() {
   if (!confirmDestructive('Loading demo KML')) return;
@@ -1530,7 +1530,7 @@ function _parseKMLPlacemark(pm, i, folderName) {
   };
 }
 
-// ── Stage 2: load original parcels ───────────────────────────────────────────
+// -- Stage 2: load original parcels ------------------------------------------─
 
 function loadOriginals(features) {
   // Clear everything
@@ -1574,7 +1574,7 @@ function loadOriginals(features) {
   createEditableCopies();
 }
 
-// ── Stage 2: project boundary ─────────────────────────────────────────────────
+// -- Stage 2: project boundary ------------------------------------------------─
 
 function computeProjectBoundary() {
   STATE.boundaryLG.clearLayers();
@@ -1599,7 +1599,7 @@ function computeProjectBoundary() {
   });
 }
 
-// ── Stage 2: create editable copies ──────────────────────────────────────────
+// -- Stage 2: create editable copies ------------------------------------------
 
 function createEditableCopies() {
   STATE.editableParcels = {};
@@ -1618,7 +1618,7 @@ function createEditableCopies() {
   computeStats();
 }
 
-// ── Stage 2: render editable layer ────────────────────────────────────────────
+// -- Stage 2: render editable layer --------------------------------------------
 
 function refreshEditableLayer() {
   STATE.editLG.clearLayers();
@@ -1665,7 +1665,7 @@ function refreshEditableLayer() {
       interactive: !_editOrigMode,
     });
 
-    // ── Road label: pick longest centerline segment, position tooltip there ──
+    // -- Road label: pick longest centerline segment, position tooltip there --
     let _roadLabelLL = null;
     if (parcel.type === 'Road') {
       let ang = 0, maxWidthPx = 0, midLat = parcel.latlngs[0]?.lat || 0;
@@ -1740,7 +1740,7 @@ function refreshEditableLayer() {
   });
 }
 
-// ── Stage 2: rename (double-click on label) ───────────────────────────────────
+// -- Stage 2: rename (double-click on label) ----------------------------------─
 
 function renameParcel(id) {
   const p = STATE.editableParcels[id];
@@ -1756,7 +1756,7 @@ function renameParcel(id) {
 
 const MAX_HISTORY  = 50;
 
-// ── Stage 3: transient interaction state ─────────────────────────────────────
+// -- Stage 3: transient interaction state ------------------------------------─
 let dragState      = null;   // { id, idx } while dragging a vertex
 let _vertexMarkers = [];     // ordered vertex markers for the selected polygon
 let _closeMarker   = null;   // pulsing marker on first draw vertex (shown at 3+ verts)
@@ -1773,7 +1773,7 @@ let _pendingRoadVertexClick = null; // { id, idx } — set when road vertex is s
 let _edgeOpState            = null; // { parcelId, edgeIdx, mode, highlightLine } — waiting for ref edge
 let _alignPolysState        = false; // true when waiting for a reference edge to rectangularize selected polygons
 
-// ── Stage 3: map click / dblclick / mousemove ─────────────────────────────────
+// -- Stage 3: map click / dblclick / mousemove --------------------------------─
 
 function onMapClick(e) {
   if (_justDragged) { _justDragged = false; return; }
@@ -1863,7 +1863,7 @@ if (STATE.activeTool === 'ruler' && STATE.rulerVerts.length > 0 && !STATE._ruler
   }
 }
 
-// ── Stage 3: snap ─────────────────────────────────────────────────────────────
+// -- Stage 3: snap ------------------------------------------------------------─
 
 const SNAP_PX       = 15; // hover indicator radius
 const SNAP_CLICK_PX = 20; // larger tolerance used when snapping on actual clicks
@@ -1958,7 +1958,7 @@ function updateSnapMarker(ll) {
   }
 }
 
-// ── Stage 3: drawing ──────────────────────────────────────────────────────────
+// -- Stage 3: drawing ----------------------------------------------------------
 
 function showCloseMarker() {
   removeCloseMarker();
@@ -2036,7 +2036,7 @@ function cancelDraw() {
   STATE.drawVerts = [];
 }
 
-// ── Ruler ─────────────────────────────────────────────────────────────────────
+// -- Ruler --------------------------------------------------------------------─
 
 function formatDist(m) {
   return m < 1000 ? m.toFixed(1) + ' m' : (m / 1000).toFixed(3) + ' km';
@@ -2202,7 +2202,7 @@ function finishDrawing() {
   }
 }
 
-// ── Stage 3: name / type dialog ───────────────────────────────────────────────
+// -- Stage 3: name / type dialog ----------------------------------------------─
 
 function openNameDialog(defaultName, defaultType, callback, title = 'New polygon', btnLabel = 'Add') {
   document.getElementById('dlg-name').value = defaultName;
@@ -2230,7 +2230,7 @@ function cancelDialog() {
   STATE.dialogResolve = null;
 }
 
-// ── Stage 3: clip polygon to project boundary ────────────────────────────────
+// -- Stage 3: clip polygon to project boundary --------------------------------
 
 function clipToBoundary(geojson) {
   if (!STATE.originalFeatures.length) return geojson;
@@ -2253,7 +2253,7 @@ function clipToBoundary(geojson) {
   return clipped;
 }
 
-// ── Stage 3: road dialog + buffer ────────────────────────────────────────────
+// -- Stage 3: road dialog + buffer --------------------------------------------
 
 function openRoadDialog(verts) {
   const roadCount = Object.values(STATE.editableParcels).filter(p => p.type === 'Road').length;
@@ -2312,7 +2312,7 @@ function applyRoadBuffer(verts, name, widthM) {
   computeStats();
 }
 
-// ── Stage 3: select / deselect / handles ──────────────────────────────────────
+// -- Stage 3: select / deselect / handles --------------------------------------
 
 function handlePolygonClick(id, e) {
   if (document.getElementById('edge-popup').classList.contains('open')) { closeEdgePopup(); return; }
@@ -2379,7 +2379,7 @@ function deselectAll() {
   syncTableSelection();
 }
 
-// ── Compound vertex / edge helpers ────────────────────────────────────────────
+// -- Compound vertex / edge helpers --------------------------------------------
 
 const _CMP_EPS = 1e-9;
 function _sameLL(a, b) {
@@ -2508,7 +2508,7 @@ function renderVertexHandles(id) {
     }
   }
 
-  // ── Rotate handle — positioned above the bounding box ──
+  // -- Rotate handle — positioned above the bounding box --
   const pts  = p.latlngs.map(ll => map.latLngToContainerPoint(ll));
   const minX = Math.min(...pts.map(pt => pt.x));
   const maxX = Math.max(...pts.map(pt => pt.x));
@@ -2531,7 +2531,7 @@ function renderVertexHandles(id) {
   container.appendChild(rotDiv);
 }
 
-// ── Stage 3: parcel body drag ─────────────────────────────────────────────────
+// -- Stage 3: parcel body drag ------------------------------------------------─
 
 function startParcelDrag(id, downEvent) {
   if (STATE.activeTool !== 'select') return;
@@ -2623,7 +2623,7 @@ function startParcelDrag(id, downEvent) {
   document.addEventListener('touchend',  onUp);
 }
 
-// ── Stage 3: rotate drag ──────────────────────────────────────────────────────
+// -- Stage 3: rotate drag ------------------------------------------------------
 
 function startRotateDrag(id, startClientX, startClientY) {
   const p = STATE.editableParcels[id];
@@ -2687,7 +2687,7 @@ function startRotateDrag(id, startClientX, startClientY) {
   document.addEventListener('touchend',  onUp);
 }
 
-// ── Stage 3: vertex drag ──────────────────────────────────────────────────────
+// -- Stage 3: vertex drag ------------------------------------------------------
 
 function startVertexDrag(id, idx, marker) {
   closeEdgePopup(); closeRoadVertexPopup();
@@ -2742,7 +2742,7 @@ function startVertexDrag(id, idx, marker) {
   document.addEventListener('touchend',  onUp);
 }
 
-// ── Stage 3: edge drag ────────────────────────────────────────────────────────
+// -- Stage 3: edge drag --------------------------------------------------------
 
 function startEdgeDragOrInsert(id, edgeIdx, midLatLng, marker, downEvent) {
   const p = STATE.editableParcels[id];
@@ -2843,7 +2843,7 @@ function startEdgeDragOrInsert(id, edgeIdx, midLatLng, marker, downEvent) {
   document.addEventListener('touchend',  onUp);
 }
 
-// ── Stage 3: compound vertex / edge drag ─────────────────────────────────────
+// -- Stage 3: compound vertex / edge drag ------------------------------------─
 
 function startCompoundVertexDrag(members, marker) {
   closeEdgePopup(); closeRoadVertexPopup();
@@ -2979,7 +2979,7 @@ function startCompoundEdgeDrag(members, marker, downEvent) {
   document.addEventListener('touchend',  onUp);
 }
 
-// ── Stage 3: insert / delete ──────────────────────────────────────────────────
+// -- Stage 3: insert / delete --------------------------------------------------
 
 function insertVertexAndDrag(id, beforeIdx, latlng) {
   const p = STATE.editableParcels[id];
@@ -3009,7 +3009,7 @@ function deletePolygon(id) {
   computeStats();
 }
 
-// ── Stage 3: change type (called from stats table dropdown) ───────────────────
+// -- Stage 3: change type (called from stats table dropdown) ------------------─
 
 function changeParcelType(id, type) {
   const p = STATE.editableParcels[id];
@@ -3021,7 +3021,7 @@ function changeParcelType(id, type) {
   computeStats();
 }
 
-// ── Stage 3: tracing mode ─────────────────────────────────────────────────────
+// -- Stage 3: tracing mode ----------------------------------------------------─
 
 function startTracing() {
   if (!confirmDestructive('Tracing new parcels')) return;
@@ -3068,7 +3068,7 @@ function doneTracing() {
   if (STATE.originalFeatures.length > 0) createEditableCopies();
 }
 
-// ── Stage 4: computeStats ─────────────────────────────────────────────────────
+// -- Stage 4: computeStats ----------------------------------------------------─
 
 function computeStats() {
   const params = {
@@ -3133,7 +3133,7 @@ if (p.type !== 'Road' && newArea < params.minSize - 0.01) violations.push('size'
                        newArea, origArea, deltaPercent, overlapPercent, spilloverArea, violations });
   }
 
-  // ── Type totals ───────────────────────────────────────────────────────────
+  // -- Type totals ----------------------------------------------------------─
   let roadArea = 0, publicArea = 0, privateArea = 0;
   parcelStats.forEach(ps => {
     if      (ps.type === 'Road')                                                    roadArea    += ps.newArea;
@@ -3143,7 +3143,7 @@ if (p.type !== 'Road' && newArea < params.minSize - 0.01) violations.push('size'
 
   const projArea = STATE.projectArea || 0;
 
-  // ── Expensive checks skipped during vertex drag ───────────────────────────
+  // -- Expensive checks skipped during vertex drag --------------------------─
   let coverageGap = null;
   let overlapArea = 0;
 
@@ -3168,7 +3168,7 @@ if (p.type !== 'Road' && newArea < params.minSize - 0.01) violations.push('size'
     }
   }
 
-  // ── Aggregates ────────────────────────────────────────────────────────────
+  // -- Aggregates ------------------------------------------------------------
   const avg          = arr => arr.length ? arr.reduce((a,b) => a+b, 0) / arr.length : null;
   const avgReduction    = avg(reductions);
   const maxReduction    = reductions.length ? Math.max(...reductions) : null;
@@ -3210,7 +3210,7 @@ if (p.type !== 'Road' && newArea < params.minSize - 0.01) violations.push('size'
   }
 }
 
-// ── Stage 4: parcel table ─────────────────────────────────────────────────────
+// -- Stage 4: parcel table ----------------------------------------------------─
 
 const PARCEL_TYPES = ['Private parcel','Road','Public','Open space'];
 
@@ -3379,7 +3379,7 @@ function selectParcelFromTable(id, event) {
   }
 }
 
-// ── Stage 4: layout summary ───────────────────────────────────────────────────
+// -- Stage 4: layout summary --------------------------------------------------─
 
 function renderSummary(s) {
   const el = document.getElementById('summary-body');
@@ -3511,7 +3511,7 @@ function flashGaps() {
   }, 1500);
 }
 
-// ── Stage 5: undo / history ───────────────────────────────────────────────────
+// -- Stage 5: undo / history --------------------------------------------------─
 
 function serializeEditables() {
   const out = {};
@@ -3579,7 +3579,7 @@ function redo() {
   STATE.history.push({ e: serializeEditables(), o: serializeOriginals() });
   _applySnapshot(STATE.redoStack.pop());
 }
-// ── REDRAW PROJECT BOUNDARY ───────────────────────────────────────────────────
+// -- REDRAW PROJECT BOUNDARY --------------------------------------------------─
 
 let _boundaryDrawVerts = [];
 let _boundaryDrawing   = false;
@@ -3772,10 +3772,10 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// ── END REDRAW PROJECT BOUNDARY ───────────────────────────────────────────────
+// -- END REDRAW PROJECT BOUNDARY ----------------------------------------------─
 
-// ── Stage 5: export KML ───────────────────────────────────────────────────────
-// ── AUTOSAVE & SESSION RECOVERY ─────────────────────────────────────────────
+// -- Stage 5: export KML ------------------------------------------------------─
+// -- AUTOSAVE & SESSION RECOVERY --------------------------------------------─
 
 const AUTOSAVE_KEY = 'landre_autosave';
 const AUTOSAVE_INTERVAL = 30000; // 30 seconds
@@ -3869,7 +3869,7 @@ window.addEventListener('beforeunload', function(e) {
   }
 });
 
-// ── END AUTOSAVE ─────────────────────────────────────────────────────────────
+// -- END AUTOSAVE ------------------------------------------------------------─
 
 async function exportKML() {
 clearSavedSession(); // User has exported — safe to clear autosave
@@ -3965,7 +3965,7 @@ ${readjusted.map(f => placemark(f, false)).join('\n')}
 </Document></kml>`;
 }
 
-// ── Stage 5: export CSV (browser-only) ───────────────────────────────────────
+// -- Stage 5: export CSV (browser-only) --------------------------------------─
 
 function switchTab(name) {
   document.querySelectorAll('.panel-tab').forEach(b =>
@@ -4025,7 +4025,7 @@ function exportCSV() {
     ]);
   }
 
-  // ── Layout summary section ────────────────────────────────────────────────
+  // -- Layout summary section ------------------------------------------------
   const s = STATE.lastSummary;
   if (s) {
     const p   = s.params;
@@ -4071,7 +4071,7 @@ function exportCSV() {
   downloadBlob(new Blob(['﻿', csv], { type: 'text/csv;charset=utf-8;' }), 'landre_stats.csv');
 }
 
-// ── Stage 5: blob download helper ────────────────────────────────────────────
+// -- Stage 5: blob download helper --------------------------------------------
 
 function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -4082,7 +4082,7 @@ function downloadBlob(blob, filename) {
   URL.revokeObjectURL(url);
 }
 
-// ── Resize selected parcel ────────────────────────────────────────────────────
+// -- Resize selected parcel ----------------------------------------------------
 
 function shrinkSelected() {
   const pct = parseFloat(document.getElementById('shrink-pct').value);
@@ -4309,7 +4309,7 @@ function clipOverlaps() {
   computeStats();
 }
 
-// ── Stage 3.5: road centerline editing ───────────────────────────────────────
+// -- Stage 3.5: road centerline editing --------------------------------------─
 
 function rebufferRoad(parcel) {
   if (!parcel.roadVerts || parcel.roadVerts.length < 2 || !parcel.roadWidth) return;
@@ -4481,7 +4481,7 @@ function startRoadMidpointInsert(id, insertIdx, midLatLng) {
   if (newMarker) startRoadVertexDrag(id, insertIdx, newMarker);
 }
 
-// ── Stage 3.6: edge alignment (parallel / perpendicular) ──────────────────────
+// -- Stage 3.6: edge alignment (parallel / perpendicular) ----------------------
 
 function showRoadVertexPopup(id, idx, clientX, clientY) {
   _pendingRoadVertexClick = { id, idx };
@@ -4679,7 +4679,7 @@ function ptSegDist(p, a, b) {
   return Math.hypot(p.x - (a.x + t * abx), p.y - (a.y + t * aby));
 }
 
-// ── Align selected polygons (rectangularize to a reference edge) ─────────────
+// -- Align selected polygons (rectangularize to a reference edge) ------------─
 
 // Like findNearestEdge but checks both editable and original parcels, and returns
 // the normalised direction vector of the closest edge rather than parcel/edge IDs.
@@ -4796,7 +4796,7 @@ function rectifyPolygon(latlngs, dir) {
   ].map(([a, b]) => L.latLng(cy + a * uy + b * vy, cx + a * ux + b * vx));
 }
 
-// ── Edit originals mode ──────────────────────────────────────────────────────
+// -- Edit originals mode ------------------------------------------------------
 
 let _origVertexMarkers = [];
 
@@ -4941,7 +4941,7 @@ function startOrigVertexDrag(id, idx, marker) {
 }
 
 
-// ── Road grade check ─────────────────────────────────────────────────────────
+// -- Road grade check --------------------------------------------------------─
 
 function _haversineDist(a, b) {
   const R = 6371000;
@@ -5061,7 +5061,7 @@ async function checkRoadGrades() {
   document.getElementById('btn-check-grades').style.display = 'none';
 }
 
-// ── Boot ─────────────────────────────────────────────────────────────────────
+// -- Boot --------------------------------------------------------------------─
 initMap();
 </script>
 </body>
