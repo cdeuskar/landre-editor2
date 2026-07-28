@@ -1328,21 +1328,10 @@ async function handleReadjustedKML(e) {
 
   let features = [];
   try {
-    // Try server-side parse first
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const res = await fetch('/api/upload/kml', { method: 'POST', body: formData });
-      if (res.ok) {
-        const fc = await res.json();
-        if (fc.features?.length > 0) features = fc.features;
-      }
-    } catch {}
-    // Fallback: browser-side parse
-    if (!features.length) {
-      const text = await file.text();
-      features = parseKMLBrowser(text);
-    }
+    // Always use browser parser for readjusted KML to preserve description/type fields
+    // (server-side parser strips the description field)
+    const text = await file.text();
+    features = parseKMLBrowser(text);
   } catch (err) {
     alert('Could not parse KML: ' + err.message);
     return;
@@ -1379,6 +1368,11 @@ async function handleReadjustedKML(e) {
   // Clear existing editable parcels
   pushHistory();
   STATE.editableParcels = {};
+  STATE.editLG.clearLayers();
+  STATE.vertexLG.clearLayers();
+  document.getElementById('vhandles').innerHTML = '';
+  STATE.selectedIds    = new Set();
+  STATE.lastSelectedId = null;
 
   // Type mapping from KML description or name keywords
   function detectType(name, description) {
