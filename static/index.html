@@ -1353,12 +1353,38 @@ async function handleReadjustedKML(e) {
     return;
   }
 
+  // Detect if this is a full LandRe export with Originals + Readjusted folders
+  const originalsFromExport   = features.filter(f =>
+    (f.properties?._folder || '').toLowerCase().includes('original'));
+  const readjustedFromExport  = features.filter(f =>
+    (f.properties?._folder || '').toLowerCase().includes('readjust'));
+
+  if (originalsFromExport.length > 0 && readjustedFromExport.length > 0) {
+    // Full LandRe export — handle both folders
+    if (!STATE.originalFeatures.length) {
+      // No originals loaded yet — load them from the file
+      loadOriginals(originalsFromExport);
+    } else {
+      // Originals already loaded — just confirm before replacing editable layer
+      if (!confirm(
+        `This file contains ${originalsFromExport.length} original parcel(s) and ` +
+        `${readjustedFromExport.length} readjusted parcel(s).\n\n` +
+        `Your current original parcels will be kept. Only the readjusted layer will be loaded. Continue?`
+      )) return;
+    }
+    // Use only the readjusted features
+    features = readjustedFromExport;
+  }
+
   // Clear existing editable parcels
   pushHistory();
   STATE.editableParcels = {};
 
   // Type mapping from KML description or name keywords
   function detectType(name, description) {
+    // Direct match from description (set by LandRe export)
+    const knownTypes = ['Road', 'Private parcel', 'Public commercial', 'Public social', 'Open space'];
+    if (knownTypes.includes(description)) return description;
     const str = ((name || '') + ' ' + (description || '')).toLowerCase();
     if (str.includes('road'))                              return 'Road';
     if (str.includes('commercial'))                        return 'Public commercial';
@@ -1456,29 +1482,51 @@ async function handleKMLFile(e) {
 // Lightweight browser-side KML parser (used when server is unavailable)
 function parseKMLBrowser(text) {
   const doc   = new DOMParser().parseFromString(text, 'application/xml');
-  const pms   = [...doc.querySelectorAll('Placemark')];
   const feats = [];
-  pms.forEach((pm, i) => {
-    const nameEl = pm.querySelector('name');
-    const name   = nameEl?.textContent.trim() || `Parcel ${parcelLabel(i)}`;
-    const polyEl = pm.querySelector('Polygon');
-    if (!polyEl) return;
-    const raw = polyEl.querySelector('coordinates')?.textContent.trim();
-    if (!raw) return;
-    const coords = raw.split(/\s+/).reduce((acc, tok) => {
-      const p = tok.split(',');
-      if (p.length >= 2) acc.push([parseFloat(p[0]), parseFloat(p[1])]);
-      return acc;
-    }, []);
-    if (coords.length < 3) return;
-    if (coords[0][0] !== coords[coords.length-1][0]) coords.push([...coords[0]]);
-    feats.push({
-      type: 'Feature',
-      properties: { name },
-      geometry: { type: 'Polygon', coordinates: [coords] }
+
+  // Process each Folder separately so we can tag features with their folder name
+  const folders = [...doc.querySelectorAll('Folder')];
+  if (folders.length > 0) {
+    folders.forEach(folder => {
+      const folderName = folder.querySelector(':scope > name')?.textContent.trim() || '';
+      const pms = [...folder.querySelectorAll('Placemark')];
+      pms.forEach((pm, i) => {
+        const feat = _parseKMLPlacemark(pm, i, folderName);
+        if (feat) feats.push(feat);
+      });
     });
-  });
+  } else {
+    // No folders — parse all placemarks directly
+    const pms = [...doc.querySelectorAll('Placemark')];
+    pms.forEach((pm, i) => {
+      const feat = _parseKMLPlacemark(pm, i, '');
+      if (feat) feats.push(feat);
+    });
+  }
   return feats;
+}
+
+function _parseKMLPlacemark(pm, i, folderName) {
+  const nameEl = pm.querySelector('name');
+  const name   = nameEl?.textContent.trim() || `Parcel ${parcelLabel(i)}`;
+  const descEl = pm.querySelector('description');
+  const desc   = descEl?.textContent.trim() || '';
+  const polyEl = pm.querySelector('Polygon');
+  if (!polyEl) return null;
+  const raw = polyEl.querySelector('coordinates')?.textContent.trim();
+  if (!raw) return null;
+  const coords = raw.split(/\s+/).reduce((acc, tok) => {
+    const p = tok.split(',');
+    if (p.length >= 2) acc.push([parseFloat(p[0]), parseFloat(p[1])]);
+    return acc;
+  }, []);
+  if (coords.length < 3) return null;
+  if (coords[0][0] !== coords[coords.length-1][0]) coords.push([...coords[0]]);
+  return {
+    type: 'Feature',
+    properties: { name, description: desc, _folder: folderName },
+    geometry: { type: 'Polygon', coordinates: [coords] }
+  };
 }
 
 // ── Stage 2: load original parcels ───────────────────────────────────────────
@@ -3829,7 +3877,7 @@ clearSavedSession(); // User has exported — safe to clear autosave
   }));
   const readjusted = Object.values(STATE.editableParcels).map(p => ({
     type: 'Feature',
-    properties: { name: p.name, type: p.type },
+    properties: { name: p.name, type: p.type, description: p.type },
     geometry: { type: 'Polygon', coordinates: [latlngsToCoords(p.latlngs)] },
   }));
 
