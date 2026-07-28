@@ -1377,12 +1377,11 @@ async function handleReadjustedKML(e) {
   // Type mapping from KML description or name keywords
   function detectType(name, description) {
     // Direct match from description (set by LandRe export)
-    const knownTypes = ['Road', 'Private parcel', 'Public commercial', 'Public social', 'Open space'];
+    const knownTypes = ['Road', 'Private parcel', 'Public', 'Open space'];
     if (knownTypes.includes(description)) return description;
     const str = ((name || '') + ' ' + (description || '')).toLowerCase();
     if (str.includes('road'))                              return 'Road';
-    if (str.includes('commercial'))                        return 'Public commercial';
-    if (str.includes('social') || str.includes('school') || str.includes('clinic')) return 'Public social';
+    if (str.includes('public'))                            return 'Public';
     if (str.includes('open') || str.includes('space') || str.includes('pond')) return 'Open space';
     return 'Private parcel';
   }
@@ -3779,7 +3778,7 @@ function saveSession() {
       editableFeatures: [],
     };
     // Capture all editable polygons
-    STATE.editableLayers.eachLayer(layer => {
+    STATE.editLG.eachLayer(layer => {
       if (layer.feature || layer.toGeoJSON) {
         const gj = layer.toGeoJSON();
         gj.properties = gj.properties || {};
